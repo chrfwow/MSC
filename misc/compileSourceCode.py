@@ -1,13 +1,16 @@
 import clang.cindex
 import subprocess
 
+from counterfactuals2.language import Language
+
+clang.cindex.Config.set_library_file('D:/Programme/LLVM/bin/libclang.dll')
 index = clang.cindex.Index.create()
 
 
-def is_syntactically_correct(code: str, lang: str):
-    if lang == "cpp" or lang == "c++":
+def is_syntactically_correct(code: str, lang: str | Language):
+    if lang == Language.Cpp or lang == "cpp" or lang == "c++":
         return is_syntactically_correct_cpp_code(code)
-    elif lang == "java" or lang == "Java":
+    elif lang == Language.Java or lang == "java" or lang == "Java":
         return is_syntactically_correct_java_code(code)
     else:
         print("unknown language", lang, "cannot compile")

@@ -1,12 +1,8 @@
-from counterfactuals.GeneticSearch import GeneticSearch
-from counterfactuals.GreedySearch import GreedySearch
-from counterfactuals.RemoveWordsPerturbation import RemoveWordsPerturbation
-from counterfactuals.code_formatter import format_code
-from counterfactuals.explainer import SequenceExplainer, SequenceExplanation
+from counterfactuals.explainer import SequenceExplainer
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
-import numpy as np
+
+from counterfactuals.kExponentialSearch import KExponentialSearch
 
 # tokenizer = AutoTokenizer.from_pretrained('mrm8488/codebert-base-finetuned-detect-insecure-code')
 # model = AutoModelForSequenceClassification.from_pretrained('mrm8488/codebert-base-finetuned-detect-insecure-code')
@@ -64,9 +60,10 @@ int main() {
 pjava = """
 public class Main{
 public static void main(String[] args){
-    System.out.println(null[0]);
+    break System.out.println("hello");
 }}
 """.strip()
+
 p1 = pjava
 language = "java"
 
@@ -78,7 +75,8 @@ else:
     print("GPU is not available, using CPU instead", device)
 
 # sequenceExplainer = SequenceExplainer(GreedySearch(RemoveWordsPerturbation()))
-sequenceExplainer = SequenceExplainer(language, GeneticSearch(language=language, iterations=15, gene_pool_size=90))
+# sequenceExplainer = SequenceExplainer(language, GeneticSearch(language=language, iterations=15, gene_pool_size=90))
+sequenceExplainer = SequenceExplainer(language, KExponentialSearch(language=language, k=1))
 explanations = sequenceExplainer.explain(p1)
 
 # explanations.print_removal_explanations()

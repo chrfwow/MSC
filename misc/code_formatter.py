@@ -1,11 +1,13 @@
-import subprocess
 import re
+import subprocess
+
+from counterfactuals2.language import Language
 
 
-def format_code(code: str, lang: str) -> str:
-    if lang == "cpp" or lang == "c++":
+def format_code(code: str, lang: Language | str) -> str:
+    if lang == Language.Cpp or lang == "cpp" or lang == "c++":
         return format_cpp(code)
-    elif lang == "java" or lang == "Java":
+    elif lang == Language.Java or lang == "java" or lang == "Java":
         return format_java(code)
     else:
         print("unknown language", lang, "cannot format")
@@ -39,9 +41,14 @@ def format_java(java_code):
                                 capture_output=True, check=False)
         formatted = result.stdout
         if len(formatted) == 0:
-            return java_code
+            return hardcoded_format_java(java_code)
         return formatted
     except subprocess.CalledProcessError as e:
         print(f'Error formatting Java code: {e}')
         print(e.stdout, e.stderr)
-        return java_code
+        return hardcoded_format_java(java_code)
+
+
+def hardcoded_format_java(java_code):
+    return java_code.replace("{", " {\n").replace("}", "\n}\n").replace(" ; ", ";\n").replace(" . ", ".").replace(
+        " ( ", "(").replace(" ) ", ")").replace(" [ ] ", "[] ").replace(" [ ", "[").replace(" ] ", "]")

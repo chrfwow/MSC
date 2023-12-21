@@ -3,11 +3,8 @@ from typing import Tuple, List
 import torch
 
 from transformers import AutoTokenizer, PLBartForSequenceClassification
-from transformers import pipeline
 
 from counterfactuals.base_proxy import BasePerturbationProxy
-from counterfactuals.code_formatter import format_code
-from counterfactuals.diffGen import to_diff_hunk
 import re
 
 
@@ -36,11 +33,12 @@ class ReplaceWordsPerturbationPlBart(BasePerturbationProxy):
                                "long", "const", "unsigned", "switch", "struct", "nullptr", "free", "malloc", "case",
                                "len", ]
 
-    java_tokens: List[str] = ["", " ", "\n", "(", ")", "{", "}", "[", "]", ";", "\"", "<<", "<", ">>", ">",
-                              "::", ".", ",", "+", "-", "*", "/", "+=", "-=", "*=", "/=", "!=", "==", "=",
-                              "||", "|", "&&", "&", "'", "->", "true", "false"]
-    java_keywords: List[str] = ["do", "while", "for", "break", "return", "if", "else", "int", "boolean", "double",
-                                "float", "long", "final", "static", "switch", "null", "case", "String"]
+    java_tokens: List[str] = ["", " ", "\n", "(", ")", "{", "}", "[", "]", ";", ]  # "\"", "<<", "<", ">>", ">",
+    # "::", ".", ",", "+", "-", "*", "/", "+=", "-=", "*=", "/=", "!=", "==", "=",
+    # "||", "|", "&&", "&", "'", "->", "true", "false"]
+    java_keywords: List[str] = [
+        "return"]  # "do", "while", "for", "break", "return", "if", "else", "int", "boolean", "double",
+    # "float", "long", "final", "static", "switch", "null", "case", "String"]
 
     tokens = []
     keywords = []

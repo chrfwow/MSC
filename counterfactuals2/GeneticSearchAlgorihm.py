@@ -1,62 +1,36 @@
 import random
-import string
+
+from counterfactuals2.AbstractClassifier import AbstractClassifier
+from counterfactuals2.Counterfactual import Counterfactual
+from counterfactuals2.AbstractPerturber import AbstractPerturber
+from counterfactuals2.SearchAlgorithm import AbstractSearchAlgorithm
 from typing import List, Set
-from counterfactuals.ReplaceWordsPerturbation_plbart import ReplaceWordsPerturbationPlBart
-from misc.code_formatter import format_code
+
+from counterfactuals2.AbstractTokenizer import AbstractTokenizer
+from counterfactuals2.language import Language
 from misc.compileSourceCode import is_syntactically_correct
-from counterfactuals.counterfactual_search import BaseCounterfactualSearch
 
 
-def should_survive(current_fitness: float, min_fitness: float, delta_fitness: float) -> bool:
-    scaled = (current_fitness - min_fitness) / delta_fitness
-    return random.random() * scaled > .3  # todo fine tune
+class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
-
-forbidden_compiler_errors: List[str] = ["cannot combine with previous '", "expected '", "expected expression",
-                                        "invalid parameter name", "type-id cannot have a name", "invalid '==' at",
-                                        "a type specifier is required for all declarations", "extraneous closing brace",
-                                        "invalid suffix on literal", "expected function body after function declarator",
-                                        "expected unqualified-id", "missing terminating '"]
-
-
-class GeneticSearch(BaseCounterfactualSearch):
-    def __init__(self, language, iterations: int = 10, gene_pool_size: int = 50,
-                 kill_ratio: float = .3):
-        self.language = language
-        self.proxy = ReplaceWordsPerturbationPlBart(language)
+    def __init__(self, tokenizer: AbstractTokenizer, evaluator: AbstractClassifier, perturber: AbstractPerturber,
+                 language: Language, iterations: int = 10, gene_pool_size: int = 50, kill_ratio: float = .3):
+        super().__init__(tokenizer, evaluator, perturber, language)
         self.iterations = iterations
         self.gene_pool_size = gene_pool_size
         self.kill_ratio = kill_ratio
 
-    def search(self, document):
-        print("searching for counterfactuals for\n", format_code(document, self.language))
-        proxy = self.proxy
-
+    def perform_search(self, source_code: str, number_of_tokens_in_src: int, dictionary: List[str], original_class: any,
+                       original_confidence: float, original_tokens: List[int]) -> List[Counterfactual]:
         random.seed(1)
-
-        document_length, dictionary = proxy.document_to_perturbation_space(document)
-        print("document_length", document_length, "dictionary", dictionary)
-
         dictionary_length = len(dictionary)
 
         gene_pool: List[Entry] = []
-        explanations = []
-        perturbation_tracking = []
-
-        original_document_indices: List[int] = []
-        for i in range(document_length):
-            original_document_indices.append(i)
-
-        initial_output = proxy.classify(proxy.perturb_positions(dictionary, original_document_indices))
-        print("initial_output", initial_output)
-
-        initial_classification, initial_score = initial_output[0] if isinstance(initial_output, list) else \
-            initial_output
-        print("initial_classification", initial_classification, initial_score)
+        counterfactuals: List[Counterfactual] = []
 
         for i in range(self.gene_pool_size):  # add random start population
-            entry = Entry("", 0, [*original_document_indices])
-            mutate(entry, dictionary_length)
+            entry = Entry("", 0, [*original_tokens])
+            self.perturber.perturb_in_place(entry.document_indices, dictionary_length)
             gene_pool.append(entry)
 
         for iteration in range(self.iterations):
@@ -67,22 +41,18 @@ class GeneticSearch(BaseCounterfactualSearch):
             to_remove: Set[Entry] = set()
 
             for gene in gene_pool:
-                gene_doc = format_code(proxy.perturb_positions(dictionary, gene.document_indices), self.language)
-                gene_classification, gene_score = proxy.classify(gene_doc)
+                gene_doc = self.tokenizer.to_string(dictionary, gene.document_indices)
+                gene_classification, gene_score = self.classifier.classify(gene_doc)
                 is_syntactically_correct_code = is_syntactically_correct(gene_doc, self.language)
-                current_fitness = fitness(is_syntactically_correct_code, gene, document_length,
-                                          initial_classification, initial_score, gene_classification, gene_score)
-                # print("gene_classification", gene_classification, "current_fitness", current_fitness, "gene_doc",
-                #      gene_doc)
+                current_fitness = fitness(is_syntactically_correct_code, gene, number_of_tokens_in_src,
+                                          original_class, original_confidence, gene_classification, gene_score)
 
                 gene.classification = gene_classification
                 gene.fitness = current_fitness
 
-                if gene_classification != initial_classification:
-                    # print("is_syntactically_correct", is_syntactically_correct, ":", gene_doc)
+                if gene_classification != original_class:
                     if is_syntactically_correct_code:
-                        explanations.append((gene.document_indices, gene_classification, current_fitness))
-                        perturbation_tracking.append(gene_doc)
+                        counterfactuals.append(Counterfactual(dictionary, gene.document_indices, current_fitness))
                         to_remove.add(gene)  # todo really remove, or keep in gene pool to hopefully make it better?
 
             # remove counterfactuals
@@ -90,9 +60,6 @@ class GeneticSearch(BaseCounterfactualSearch):
             if len(gene_pool) == 0:
                 print("only counterfactuals left")
                 break
-
-            # sort highest fitness last
-            # gene_pool.sort(key=lambda entry: entry.fitness, reverse=False)
 
             kills = int(self.kill_ratio * len(gene_pool))
 
@@ -109,7 +76,7 @@ class GeneticSearch(BaseCounterfactualSearch):
                 gene_pool.insert(len(gene_pool), best)
 
             print("best: fitness", best.fitness, " candidates ", best.document_indices, " best doc")
-            print(format_code(proxy.perturb_positions(dictionary, best.document_indices), self.language))
+            print(self.tokenizer.to_string(dictionary, best.document_indices))
 
             pool_size = len(gene_pool)
             print("killed ", kills, " genes because they were too bad")
@@ -131,18 +98,17 @@ class GeneticSearch(BaseCounterfactualSearch):
             mutations = 0
             for i in range(pool_size):
                 if random.random() > .5:
-                    mutate(gene_pool[i], dictionary_length)
+                    self.perturber.perturb_in_place(gene_pool[i].document_indices, dictionary_length)
                     mutations += 1
             print(mutations, "mutations")
 
-        print("expl", explanations)
-        return document, explanations, perturbation_tracking, dictionary, document_length
+        return counterfactuals
 
 
 class Entry:
-    classification:any = ""
-    fitness = 0.0
-    document_indices: List[int] = []
+    classification: any
+    fitness: float
+    document_indices: List[int]
 
     def __init__(self, classification: any, fitness: float, document_indices: [int]):
         self.classification = classification
@@ -151,18 +117,6 @@ class Entry:
 
     def clone(self):
         return Entry(self.classification, self.fitness, list(self.document_indices))
-
-
-def mutate(this: Entry, dictionary_length: int):
-    what = random.random()
-    if what < .3:  # add candidate
-        this.document_indices.insert(int(len(this.document_indices) * random.random()),
-                                     int(dictionary_length * random.random()))
-    elif what < .6:  # remove candidate
-        del this.document_indices[int(len(this.document_indices) * random.random())]
-    else:  # change candidate
-        this.document_indices[int(len(this.document_indices) * random.random())] = int(
-            dictionary_length * random.random())
 
 
 def make_offspring(a: Entry, b: Entry):
@@ -236,12 +190,18 @@ def roulette_best(entries: List[Entry]) -> Entry:
 def roulette_worst(entries: List[Entry]) -> int:
     total_fitness = 0.0
     for entry in entries:
-        total_fitness += 1 / entry.fitness
+        fit = entry.fitness
+        if fit < 0.001:
+            fit = 0.001
+        total_fitness += 1 / fit
 
     rand = random.random() * total_fitness
     offset = 0.0
     for i in range(len(entries)):
-        offset += 1 / entries[i].fitness
+        fit = entries[i].fitness
+        if fit < 0.001:
+            fit = 0.001
+        offset += 1 / fit
         if rand < offset:
             return i
     return len(entries) - 1

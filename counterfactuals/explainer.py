@@ -2,7 +2,7 @@ import time
 from typing import List
 
 from .GreedySearch import GreedySearch
-from .code_formatter import format_code
+from misc.code_formatter import format_code
 from .counterfactual_search import BaseCounterfactualSearch
 from .base_proxy import BasePerturbationProxy
 
