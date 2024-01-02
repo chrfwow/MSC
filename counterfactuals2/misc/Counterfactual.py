@@ -1,13 +1,7 @@
-from typing import List
-
-from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
-
-
 class Counterfactual:
-    def __init__(self, dictionary: List[str], tokens: List[int], score: float):
-        self.dictionary = dictionary
-        self.tokens = tokens
+    def __init__(self, code: str, score: float):
+        self.code = code
         self.score = score
 
-    def to_string(self, tokenizer: AbstractTokenizer):
-        return "score " + str(self.score) + ": " + tokenizer.to_string(self.dictionary, self.tokens)
+    def to_string(self):
+        return "score " + str(self.score) + ": " + self.code

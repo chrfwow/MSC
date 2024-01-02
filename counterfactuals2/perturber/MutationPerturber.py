@@ -3,8 +3,6 @@ from typing import List
 
 from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
 
-MASK_INDEX = -1
-
 
 class MutationPerturber(AbstractPerturber):
     def perturb_in_place(self, source: List[int], dictionary_length: int):

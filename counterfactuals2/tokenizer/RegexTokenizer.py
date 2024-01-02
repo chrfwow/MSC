@@ -3,6 +3,7 @@ from typing import List
 
 from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
 from counterfactuals2.misc.language import Language
+from counterfactuals2.unmasker.AbstractUnmasker import AbstractUnmasker
 
 
 class RegexTokenizer(AbstractTokenizer):
@@ -22,8 +23,8 @@ class RegexTokenizer(AbstractTokenizer):
     tokens = []
     keywords = []
 
-    def __init__(self, language: Language):
-        super().__init__(language)
+    def __init__(self, language: Language, unmasker: AbstractUnmasker | None = None):
+        super().__init__(language, unmasker)
         if language == Language.Cpp:
             self.tokens = self.cpp_tokens
             self.keywords = self.cpp_keywords

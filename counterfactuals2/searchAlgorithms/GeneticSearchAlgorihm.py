@@ -1,24 +1,25 @@
 import random
-
-from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
-from counterfactuals2.misc.Counterfactual import Counterfactual
-from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
-from counterfactuals2.searchAlgorithms.SearchAlgorithm import AbstractSearchAlgorithm
 from typing import List, Set
 
-from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
-from counterfactuals2.misc.language import Language
 from common.compileSourceCode import is_syntactically_correct
+from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
+from counterfactuals2.misc.Counterfactual import Counterfactual
+from counterfactuals2.misc.Entry import Entry
+from counterfactuals2.misc.language import Language
+from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
+from counterfactuals2.searchAlgorithms.AbstractSearchAlgorithm import AbstractSearchAlgorithm
+from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
 
 
 class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
     def __init__(self, tokenizer: AbstractTokenizer, evaluator: AbstractClassifier, perturber: AbstractPerturber,
                  language: Language, iterations: int = 10, gene_pool_size: int = 50, kill_ratio: float = .3):
-        super().__init__(tokenizer, evaluator, perturber, language)
+        super().__init__(tokenizer, evaluator, language)
         self.iterations = iterations
         self.gene_pool_size = gene_pool_size
         self.kill_ratio = kill_ratio
+        self.perturber = perturber
 
     def perform_search(self, source_code: str, number_of_tokens_in_src: int, dictionary: List[str], original_class: any,
                        original_confidence: float, original_tokens: List[int]) -> List[Counterfactual]:
@@ -52,7 +53,7 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
                 if gene_classification != original_class:
                     if is_syntactically_correct_code:
-                        counterfactuals.append(Counterfactual(dictionary, gene.document_indices, current_fitness))
+                        counterfactuals.append(Counterfactual(gene_doc, current_fitness))
                         to_remove.add(gene)  # todo really remove, or keep in gene pool to hopefully make it better?
 
             # remove counterfactuals
@@ -103,20 +104,6 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
             print(mutations, "mutations")
 
         return counterfactuals
-
-
-class Entry:
-    classification: any
-    fitness: float
-    document_indices: List[int]
-
-    def __init__(self, classification: any, fitness: float, document_indices: [int]):
-        self.classification = classification
-        self.fitness = fitness
-        self.document_indices = document_indices
-
-    def clone(self):
-        return Entry(self.classification, self.fitness, list(self.document_indices))
 
 
 def make_offspring(a: Entry, b: Entry):

@@ -1,13 +1,13 @@
 from typing import List
 
-from counterfactuals2.searchAlgorithms import SearchAlgorithm
 from counterfactuals2.misc.Counterfactual import Counterfactual
-from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
 from counterfactuals2.misc.language import Language
+from counterfactuals2.searchAlgorithms import AbstractSearchAlgorithm
+from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
 
 
 class CounterfactualSearch:
-    def __init__(self, language: Language, tokenizer: AbstractTokenizer, search_algorithm: SearchAlgorithm):
+    def __init__(self, language: Language, tokenizer: AbstractTokenizer, search_algorithm: AbstractSearchAlgorithm):
         self.language = language
         self.tokenizer = tokenizer
         self.search_algorithm = search_algorithm
