@@ -3,7 +3,7 @@ from typing import Tuple
 import torch
 from transformers import AutoTokenizer, PLBartForSequenceClassification
 
-from misc.code_formatter import format_code
+from common.code_formatter import format_code
 
 defect_detection = "uclanlp/plbart-c-cpp-defect-detection"
 base = "uclanlp/plbart-base"

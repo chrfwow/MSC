@@ -1,4 +1,4 @@
-from counterfactuals2.AbstractPerturber import AbstractPerturber
+from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
 import random
 from typing import List
 

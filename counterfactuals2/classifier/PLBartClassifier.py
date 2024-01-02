@@ -1,6 +1,6 @@
 from transformers import PLBartForSequenceClassification, AutoTokenizer
 
-from counterfactuals2.AbstractClassifier import AbstractClassifier
+from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
 import torch
 
 

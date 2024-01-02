@@ -1,8 +1,8 @@
 import re
 from typing import List
 
-from counterfactuals2.AbstractTokenizer import AbstractTokenizer
-from counterfactuals2.language import Language
+from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
+from counterfactuals2.misc.language import Language
 
 
 class RegexTokenizer(AbstractTokenizer):

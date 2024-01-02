@@ -1,7 +1,7 @@
 import clang.cindex
 import subprocess
 
-from counterfactuals2.language import Language
+from counterfactuals2.misc.language import Language
 
 clang.cindex.Config.set_library_file('D:/Programme/LLVM/bin/libclang.dll')
 index = clang.cindex.Index.create()

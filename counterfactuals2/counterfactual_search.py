@@ -1,9 +1,9 @@
 from typing import List
 
-from counterfactuals2 import SearchAlgorithm
-from counterfactuals2.Counterfactual import Counterfactual
-from counterfactuals2.AbstractTokenizer import AbstractTokenizer
-from counterfactuals2.language import Language
+from counterfactuals2.searchAlgorithms import SearchAlgorithm
+from counterfactuals2.misc.Counterfactual import Counterfactual
+from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
+from counterfactuals2.misc.language import Language
 
 
 class CounterfactualSearch:

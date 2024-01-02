@@ -1,7 +1,7 @@
 import re
 import subprocess
 
-from counterfactuals2.language import Language
+from counterfactuals2.misc.language import Language
 
 
 def format_code(code: str, lang: Language | str) -> str:

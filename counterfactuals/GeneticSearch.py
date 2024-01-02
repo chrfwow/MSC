@@ -2,8 +2,8 @@ import random
 import string
 from typing import List, Set
 from counterfactuals.ReplaceWordsPerturbation_plbart import ReplaceWordsPerturbationPlBart
-from misc.code_formatter import format_code
-from misc.compileSourceCode import is_syntactically_correct
+from common.code_formatter import format_code
+from common.compileSourceCode import is_syntactically_correct
 from counterfactuals.counterfactual_search import BaseCounterfactualSearch
 
 

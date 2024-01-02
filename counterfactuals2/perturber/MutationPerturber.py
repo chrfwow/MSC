@@ -1,7 +1,9 @@
 import random
 from typing import List
 
-from counterfactuals2.AbstractPerturber import AbstractPerturber
+from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
+
+MASK_INDEX = -1
 
 
 class MutationPerturber(AbstractPerturber):

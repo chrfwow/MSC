@@ -2,7 +2,7 @@ import random
 from typing import Tuple, List, Set
 
 from counterfactuals.ReplaceWordsPerturbation_plbart import ReplaceWordsPerturbationPlBart
-from misc.code_formatter import format_code
+from common.code_formatter import format_code
 from counterfactuals.counterfactual_search import BaseCounterfactualSearch
 
 

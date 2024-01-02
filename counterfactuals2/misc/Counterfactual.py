@@ -1,6 +1,6 @@
 from typing import List
 
-from counterfactuals2.AbstractTokenizer import AbstractTokenizer
+from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
 
 
 class Counterfactual:

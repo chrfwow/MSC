@@ -1,7 +1,7 @@
 from typing import List
 
-from counterfactuals2.language import Language
-from misc.code_formatter import format_code
+from counterfactuals2.misc.language import Language
+from common.code_formatter import format_code
 
 
 class AbstractTokenizer:

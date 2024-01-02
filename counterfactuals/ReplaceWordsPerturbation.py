@@ -4,7 +4,7 @@ from transformers import AutoTokenizer
 from transformers import pipeline
 
 from counterfactuals.base_proxy import BasePerturbationProxy
-from misc.code_formatter import format_code
+from common.code_formatter import format_code
 import re
 
 

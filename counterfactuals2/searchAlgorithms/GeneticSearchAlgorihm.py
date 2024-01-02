@@ -1,14 +1,14 @@
 import random
 
-from counterfactuals2.AbstractClassifier import AbstractClassifier
-from counterfactuals2.Counterfactual import Counterfactual
-from counterfactuals2.AbstractPerturber import AbstractPerturber
-from counterfactuals2.SearchAlgorithm import AbstractSearchAlgorithm
+from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
+from counterfactuals2.misc.Counterfactual import Counterfactual
+from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
+from counterfactuals2.searchAlgorithms.SearchAlgorithm import AbstractSearchAlgorithm
 from typing import List, Set
 
-from counterfactuals2.AbstractTokenizer import AbstractTokenizer
-from counterfactuals2.language import Language
-from misc.compileSourceCode import is_syntactically_correct
+from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
+from counterfactuals2.misc.language import Language
+from common.compileSourceCode import is_syntactically_correct
 
 
 class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
