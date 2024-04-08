@@ -1,6 +1,6 @@
-from counterfactuals2.unmasker.AbstractUnmasker import AbstractUnmasker
+from transformers import RobertaTokenizer, RobertaForMaskedLM, pipeline
 
-from transformers import RobertaConfig, RobertaTokenizer, RobertaForMaskedLM, pipeline
+from counterfactuals2.unmasker.AbstractUnmasker import AbstractUnmasker
 
 
 class CodeBertUnmasker(AbstractUnmasker):

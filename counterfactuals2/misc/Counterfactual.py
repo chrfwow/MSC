@@ -5,3 +5,6 @@ class Counterfactual:
 
     def to_string(self):
         return "score " + str(self.score) + ": " + self.code
+
+    def __str__(self):
+        return self.to_string()

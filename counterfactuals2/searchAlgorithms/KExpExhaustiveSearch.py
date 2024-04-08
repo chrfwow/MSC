@@ -1,8 +1,6 @@
 import random
-from typing import List, Tuple
+from typing import List
 
-from common.code_formatter import format_code
-from counterfactuals2 import counterfactual_search
 from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
 from counterfactuals2.misc.Counterfactual import Counterfactual
 from counterfactuals2.misc.language import Language
@@ -26,17 +24,17 @@ class KEntry:
         return KEntry(self.classification, list(self.document_indices), list(self.masked_indices))
 
 
-class KExpExhaustiveMaskedSearch(AbstractSearchAlgorithm):
+class KExpExhaustiveSearch(AbstractSearchAlgorithm):
     def __init__(self, k: int, unmasker: AbstractUnmasker, tokenizer: AbstractTokenizer, classifier: AbstractClassifier,
-                 language: Language):
+                 perturber: AbstractPerturber, language: Language):
         super().__init__(tokenizer, classifier, language)
         self.k = k
         self.unmasker = unmasker
+        self.perturber = perturber
 
     def perform_search(self, source_code: str, number_of_tokens_in_src: int, dictionary: List[str], original_class: any,
                        original_confidence: float, original_tokens: List[int]) -> List[Counterfactual]:
         random.seed(1)
-        dictionary_length = len(dictionary)
 
         original_entry = KEntry(original_class, original_tokens)
 
@@ -46,10 +44,13 @@ class KExpExhaustiveMaskedSearch(AbstractSearchAlgorithm):
 
         for iteration in range(self.k):
             print("starting iteration", iteration)
+            print("searching through up to", len(this_iteration) * len(original_tokens), "mutations")
             for i in range(len(this_iteration)):
                 current = this_iteration.pop()
 
                 self.expand(dictionary, current, explanations, original_class, next_iteration)
+
+            print("found", len(explanations), "counterfactuals")
 
             this_iteration = next_iteration
             next_iteration = []
@@ -59,25 +60,28 @@ class KExpExhaustiveMaskedSearch(AbstractSearchAlgorithm):
     def expand(self, dictionary: List[str], entry: KEntry, explanations: List[Counterfactual], original_classification,
                next_iteration: List[KEntry]):
 
+        dict_len = len(dictionary)
         for i in range(len(entry.document_indices)):
             if i not in entry.masked_indices:
                 current_doc = entry.clone()
                 current_doc.masked_indices.append(i)
-                current_doc.document_indices[i] = AbstractUnmasker.MASK_INDEX
+                self.perturber.perturb_at_index(i, current_doc.document_indices, dict_len)
 
                 counterfactual = self.check(dictionary, current_doc, i, original_classification)
                 if counterfactual is not None:
                     explanations.append(counterfactual)
+                    print("Found a counterfactual", counterfactual)
                 else:
                     next_iteration.append(current_doc)
 
     def check(self, dictionary, entry: KEntry, newly_masked_index: int,
               original_classification) -> Counterfactual | None:
         src = self.tokenizer.to_string_unmasked(dictionary, entry.document_indices, newly_masked_index)
-        initial_output = self.classifier.classify(src)
-        current_classification, unused = initial_output[0] if isinstance(initial_output, list) else \
-            initial_output
+        print("checking\n", src)
+        print()
+        output = self.classifier.classify(src)
+        current_classification, score = output[0] if isinstance(output, list) else output
         if current_classification != original_classification:
-            return Counterfactual(src, 1)
+            return Counterfactual(src, float(score))
         else:
             return None

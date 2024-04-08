@@ -6,13 +6,8 @@ import torch
 
 class PLBartClassifier(AbstractClassifier):
     path = "uclanlp/plbart-c-cpp-defect-detection"
-    model = PLBartForSequenceClassification.from_pretrained(path, problem_type="multi_label_classification")
-
-    def __init__(self):
-        self.model = PLBartForSequenceClassification.from_pretrained(self.path,
-                                                                     problem_type="multi_label_classification")
-        self.num_labels = len(self.model.config.id2label)
-        self.tokenizer = AutoTokenizer.from_pretrained(self.path)
+    model = PLBartForSequenceClassification.from_pretrained(path)
+    tokenizer = AutoTokenizer.from_pretrained(path)
 
     def classify(self, source_code: str) -> (any, float):
         """Evaluates the input and returns a tuple with (result, confidence)"""

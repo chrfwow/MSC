@@ -1,3 +1,5 @@
+import re
+
 test = """
 this is some test code:
     and some indent
@@ -27,3 +29,12 @@ def to_diff_hunk(code: str):
     return """
 @@@ -1,0 +1,{numLines} @@@
 {code}""".format(numLines=len(code_lines), code=code).lstrip()
+
+
+def to_diff_code_reviewer(code: str) -> str:
+    code_lines = code.strip().split("\n")
+    code = "\n<add>".join(code_lines)
+    code = "<add>" + code
+    code = code.replace("<add><add>", "<add>")
+    code = ("<s><start>" + code + "<end></s>").replace("\n", "")
+    return re.sub(">\\s+", ">", code)

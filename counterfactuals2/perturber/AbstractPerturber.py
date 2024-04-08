@@ -9,3 +9,6 @@ class AbstractPerturber:
 
     def perturb_in_place(self, source: List[int], dictionary_length: int):
         raise NotImplementedError
+
+    def perturb_at_index(self, index: int, source: List[int], dictionary_length: int):
+        raise NotImplementedError

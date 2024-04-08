@@ -1,7 +1,7 @@
 class AbstractUnmasker:
     MASK_INDEX = -1
 
-    def get_mask(self) -> str:
+    def get_mask(self) -> str | None:
         raise NotImplementedError
 
     def get_mask_replacement(self, code: str) -> str:

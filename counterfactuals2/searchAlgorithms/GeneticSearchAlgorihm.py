@@ -11,15 +11,24 @@ from counterfactuals2.searchAlgorithms.AbstractSearchAlgorithm import AbstractSe
 from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
 
 
+def no_duplicate(counterfactuals: List[Counterfactual], gene_doc: str) -> bool:
+    for c in counterfactuals:
+        if c.code == gene_doc:
+            return False
+    return True
+
+
 class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
     def __init__(self, tokenizer: AbstractTokenizer, evaluator: AbstractClassifier, perturber: AbstractPerturber,
-                 language: Language, iterations: int = 10, gene_pool_size: int = 50, kill_ratio: float = .3):
+                 language: Language, iterations: int = 10, gene_pool_size: int = 50, kill_ratio: float = .3,
+                 allow_syntax_errors_in_counterfactuals: bool = True):
         super().__init__(tokenizer, evaluator, language)
         self.iterations = iterations
         self.gene_pool_size = gene_pool_size
         self.kill_ratio = kill_ratio
         self.perturber = perturber
+        self.allow_syntax_errors_in_counterfactuals = allow_syntax_errors_in_counterfactuals
 
     def perform_search(self, source_code: str, number_of_tokens_in_src: int, dictionary: List[str], original_class: any,
                        original_confidence: float, original_tokens: List[int]) -> List[Counterfactual]:
@@ -37,6 +46,7 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
         for iteration in range(self.iterations):
             print("iteration", iteration, "########################")
             print("gene pool size", len(gene_pool))
+            print("already found", len(counterfactuals), "counterfactuals")
             print("starting evaluation...")
 
             to_remove: Set[Entry] = set()
@@ -44,7 +54,10 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
             for gene in gene_pool:
                 gene_doc = self.tokenizer.to_string(dictionary, gene.document_indices)
                 gene_classification, gene_score = self.classifier.classify(gene_doc)
-                is_syntactically_correct_code = is_syntactically_correct(gene_doc, self.language)
+                if self.allow_syntax_errors_in_counterfactuals:
+                    is_syntactically_correct_code = True
+                else:
+                    is_syntactically_correct_code = is_syntactically_correct(gene_doc, self.language)
                 current_fitness = fitness(is_syntactically_correct_code, gene, number_of_tokens_in_src,
                                           original_class, original_confidence, gene_classification, gene_score)
 
@@ -52,7 +65,7 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
                 gene.fitness = current_fitness
 
                 if gene_classification != original_class:
-                    if is_syntactically_correct_code:
+                    if is_syntactically_correct_code and no_duplicate(counterfactuals, gene_doc):
                         counterfactuals.append(Counterfactual(gene_doc, current_fitness))
                         to_remove.add(gene)  # todo really remove, or keep in gene pool to hopefully make it better?
 
@@ -87,21 +100,27 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
             missing_genes = self.gene_pool_size - pool_size
             if missing_genes > 0:
-                print("making ", missing_genes, " new offspring")
+                print("making ", missing_genes, " new offspring or mutations")
 
-                # let the best genes reproduce
+                offspring = 0
+                mutations = 0
+
+                # let the best genes reproduce or mutate
                 for i in range(missing_genes):
-                    parent_a = roulette_best(gene_pool)
-                    parent_b = roulette_best(gene_pool)
-                    gene_pool.append(make_offspring(parent_a, parent_b))
+                    if i % 2 == 0:
+                        offspring += 1
+                        parent_a = roulette_best(gene_pool)
+                        parent_b = roulette_best(gene_pool)
+                        gene_pool.append(make_offspring(parent_a, parent_b))
+                    else:
+                        mutations += 1
+                        to_mutate = gene_pool[random.randint(0, len(gene_pool) - 1)]
+                        mutated = to_mutate.clone()
+                        self.perturber.perturb_in_place(mutated.document_indices, dictionary_length)
+                        gene_pool.append(mutated)
 
-            # mutate existing genes
-            mutations = 0
-            for i in range(pool_size):
-                if random.random() > .5:
-                    self.perturber.perturb_in_place(gene_pool[i].document_indices, dictionary_length)
-                    mutations += 1
-            print(mutations, "mutations")
+                print(mutations, "mutations")
+                print(offspring, "offspring")
 
         return counterfactuals
 
@@ -143,7 +162,7 @@ def fitness(is_syntactically_correct_code: bool, entry: Entry, document_length: 
             initial_score: float,
             current_classification: any, current_score: float) -> float:
     if initial_classification == current_classification:
-        score = current_score - initial_score
+        score = initial_score - current_score
     else:
         if current_score < 0.0001:
             score = 1000000

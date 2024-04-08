@@ -39,6 +39,8 @@ def format_cpp(code: str, mask: str | None):
 
 
 def format_java(java_code, mask: str | None):
+    if mask is not None:
+        return hardcoded_format_java(java_code)
     try:
         # Path to the google-java-format JAR file
         formatter_path = "../Java/google-java-format-1.18.1-all-deps.jar"
@@ -48,12 +50,9 @@ def format_java(java_code, mask: str | None):
                                 capture_output=True, check=False)
         formatted = result.stdout
 
-        if mask is None:
-            if len(formatted) == 0:
-                return hardcoded_format_java(java_code)
-            return formatted
-        else:
-            raise Exception("masking  not handled when formatting java code in code_formatter")
+        if len(formatted) == 0:
+            return hardcoded_format_java(java_code)
+        return formatted
     except subprocess.CalledProcessError as e:
         print(f'Error formatting Java code: {e}')
         print(e.stdout, e.stderr)
@@ -61,5 +60,11 @@ def format_java(java_code, mask: str | None):
 
 
 def hardcoded_format_java(java_code):
-    return java_code.replace("{", " {\n").replace("}", "\n}\n").replace(" ; ", ";\n").replace(" . ", ".").replace(
+    hardcoded = java_code.replace("{", " {\n").replace("}", "\n}\n").replace(" . ", ".").replace(
         " ( ", "(").replace(" ) ", ")").replace(" [ ] ", "[] ").replace(" [ ", "[").replace(" ] ", "]")
+    hardcoded = re.sub(r"}\s+}", "\n}\n}\n", hardcoded)
+    hardcoded = re.sub(r"/\s+/", "//", hardcoded)
+    hardcoded = re.sub(r"\s*;\s*", ";\n", hardcoded)
+    hardcoded = re.sub(r"\n\s+\n", "\n", hardcoded)
+    hardcoded = re.sub(r"  +", " ", hardcoded)
+    return hardcoded.strip()

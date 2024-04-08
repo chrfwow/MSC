@@ -1,10 +1,9 @@
 from typing import Tuple, List
-import sentencepiece
 from transformers import pipeline
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForSequenceClassification
+from transformers import AutoTokenizer
 
 from counterfactuals.base_proxy import BasePerturbationProxy
-from counterfactuals.diffGen import to_diff_hunk
+from common.diffGen import to_diff_hunk
 
 
 class RemoveWordsPerturbation(BasePerturbationProxy):
