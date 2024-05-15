@@ -14,26 +14,14 @@ class RegexTokenizer(AbstractTokenizer):
                                "long", "const", "unsigned", "switch", "struct", "nullptr", "free", "malloc", "case",
                                "len", ]
 
-    java_tokens: List[str] = ["", " ", "\n", "(", ")", "{", "}", "[", "]", ";", "\"", "<<", "<", ">>", ">",
-                              "::", ".", ",", "+", "-", "*", "/", "+=", "-=", "*=", "/=", "!=", "==", "=",
-                              "||", "|", "&&", "&", "'", "->", "true", "false"]
-    java_keywords: List[str] = ["return", "do", "while", "for", "break", "return", "if", "else", "int", "boolean",
-                                "double", "float", "long", "final", "static", "switch", "null", "case", "String"]
-
     tokens = []
     keywords = []
 
-    def __init__(self, language: Language, unmasker: AbstractUnmasker | None = None):
-        super().__init__(language, unmasker)
-        if language == Language.Cpp:
-            self.tokens = self.cpp_tokens
-            self.keywords = self.cpp_keywords
-        elif language == Language.Java:
-            self.tokens = self.java_tokens
-            self.keywords = self.java_keywords
-        else:
-            print("unknown language", language)
-            return
+    def __init__(self, unmasker: AbstractUnmasker | None = None):
+        super().__init__(unmasker)
+
+        self.tokens = self.cpp_tokens
+        self.keywords = self.cpp_keywords
 
         for i in range(10):
             self.tokens.append(str(i))

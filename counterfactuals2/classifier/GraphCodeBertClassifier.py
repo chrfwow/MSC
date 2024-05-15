@@ -1,36 +1,40 @@
-from transformers import PLBartForSequenceClassification, AutoTokenizer
+from transformers import PLBartForSequenceClassification, AutoTokenizer, RobertaConfig, RobertaForSequenceClassification
 
 from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
 import torch
+import torch.nn as nn
+import torch.nn.functional as functional
 
 
-class PLBartClassifier(AbstractClassifier):
-    path = "uclanlp/plbart-c-cpp-defect-detection"
-    tokenizer = AutoTokenizer.from_pretrained(path)
+class GraphCodeBertClassifier(AbstractClassifier):
+    path = "D:/A_Uni/A_MasterThesis/CodeBertModel/models/GraphCodeBERT/Vulnerability Detection/model/model.bin"
+    model_type = "microsoft/graphcodebert-base"
+    tokenizer = AutoTokenizer.from_pretrained(model_type)
 
     def __init__(self, device):
-        self.model = PLBartForSequenceClassification.from_pretrained(self.path, output_attentions=True).to(device)
+        config = RobertaConfig.from_pretrained(self.model_type)
+        config.num_labels = 1
+        raw_model = RobertaForSequenceClassification.from_pretrained(self.model_type, config=config).to(device)
+        self.model = Model(raw_model)
+        self.model.load_state_dict(torch.load(self.path, map_location=device), strict=False)
         self.device = device
 
     def classify(self, source_code: str) -> (bool, float):
-        """Evaluates the input and returns a tuple with (result, confidence). A result of 0 means secure code,
-        1 is insecure"""
+        """Evaluates the input and returns a tuple with (result, confidence)"""
         inputs = self.tokenizer(source_code, return_tensors="pt")
         input_ids = inputs["input_ids"].to(self.device)
-        attention_mask = inputs["attention_mask"].to(self.device)
 
         with torch.no_grad():
-            logits = self.model(input_ids=input_ids, attention_mask=attention_mask).logits
-            clazz = logits.argmax().item()
-            return int(clazz) == 0, float(logits[0][clazz])
+            prob = functional.sigmoid(self.model(input_ids)).item()
+            return round(prob) == 0, prob
 
     def get_embeddings(self):
         """Returns the embeddings to be used by Layer Integrated Gradients"""
-        return self.model.model.shared
+        return self.model.encoder.roberta.embeddings
 
-    def get_logits(self, input_indices, attention_mask):
+    def get_logits(self, input_indices, attention_mask=None):
         """Returns the raw logits output of the model"""
-        return self.model(input_ids=input_indices, attention_mask=attention_mask).logits
+        return self.model(input_ids=input_indices)
 
     def prepare_for_lig(self, device):
         """Prepares the model for LIG by moving it to the given device next to other measures"""
@@ -61,3 +65,14 @@ class PLBartClassifier(AbstractClassifier):
     def tokenize(self, input: str) -> dict:
         """Uses the model spcific tokenizer to tokenize the input string"""
         return self.tokenizer(input)
+
+
+class Model(nn.Module):
+    def __init__(self, encoder):
+        super(Model, self).__init__()
+        self.encoder = encoder
+
+    def forward(self, input_ids):
+        outputs = self.encoder(input_ids, attention_mask=input_ids.ne(1))[0]
+        logits = outputs
+        return logits

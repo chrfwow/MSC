@@ -18,7 +18,7 @@ public class Main{
 
 class ManualClassifier(AbstractClassifier):
 
-    def classify(self, source_code: str) -> (any, float):
+    def classify(self, source_code: str) -> (bool, float):
         hits = 0
         confidence = 0.92
         if "System.null.println(i);" in source_code:

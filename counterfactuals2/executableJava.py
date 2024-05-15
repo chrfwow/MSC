@@ -6,7 +6,6 @@ from counterfactuals2.searchAlgorithms.KExpExhaustiveSearch import KExpExhaustiv
 from counterfactuals2.tokenizer.LineTokenizer import LineTokenizer
 from counterfactuals2.classifier.PLBartClassifier import PLBartClassifier
 from counterfactuals2.perturber.RemoveTokenPerturber import RemoveTokenPerturber
-from counterfactuals2.counterfactual_search import CounterfactualSearch
 from counterfactuals2.misc.language import Language
 from counterfactuals2.tokenizer.RegexTokenizer import RegexTokenizer
 from counterfactuals2.unmasker.CodeBertUnmasker import CodeBertUnmasker
@@ -161,7 +160,6 @@ perturber = RemoveTokenPerturber()
 search_algorithm = KExpExhaustiveSearch(1, unmasker, tokenizer, classifier, perturber, language)
 # search_algorithm = GeneticSearchAlgorithm(tokenizer, classifier, perturber, language, iterations=10, gene_pool_size=50)
 
-cf_search = CounterfactualSearch(language, tokenizer, search_algorithm)
 print("begin search")
 print("begin search")
 print("begin search")
@@ -179,7 +177,7 @@ public class Main{
 }
 """
 
-counterfactuals = cf_search.search(to_classify2)
+counterfactuals = search_algorithm.search(to_classify2)
 
 print("Found", len(counterfactuals), "counterfactuals")
 for c in counterfactuals:

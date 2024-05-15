@@ -8,8 +8,7 @@ from counterfactuals2.unmasker.AbstractUnmasker import AbstractUnmasker
 class AbstractTokenizer:
     EMPTY_TOKEN_INDEX = -2
 
-    def __init__(self, language: Language, unmasker: AbstractUnmasker | None = None):
-        self.language = language
+    def __init__(self, unmasker: AbstractUnmasker | None = None):
         self.unmasker = unmasker
         if unmasker is None:
             self.mask = None
@@ -32,19 +31,21 @@ class AbstractTokenizer:
             else:
                 perturbed_sequence.append(dictionary[i])
 
-        return format_code(' '.join(perturbed_sequence), self.language)
+        return format_code(' '.join(perturbed_sequence), Language.Cpp)
 
-    def to_string_unmasked(self, dictionary: List[str], tokens: List[int], replace_with_mask: int) -> str:
+    def to_string_unmasked(self, dictionary: List[str], tokens: List[int], replace_with_mask: int = -1) -> str:
         perturbed_sequence = []
 
-        for i in tokens:
-            if i == self.EMPTY_TOKEN_INDEX:
+        i = 0
+        for token in tokens:
+            if token == self.EMPTY_TOKEN_INDEX:
                 pass
-            elif i == replace_with_mask or i == AbstractUnmasker.MASK_INDEX:
-                code = format_code(self.to_string(dictionary, tokens), self.language, self.mask)
-                replacement = self.unmasker.get_mask_replacement(code)
-                perturbed_sequence.append(replacement)
+            elif token == replace_with_mask or token == AbstractUnmasker.MASK_INDEX:
+                code = format_code(self.to_string(dictionary, tokens), Language.Cpp, self.mask)
+                tokens[i] = self.unmasker.get_mask_replacement(token, code, dictionary)
+                perturbed_sequence.append(dictionary[token])
             else:
-                perturbed_sequence.append(dictionary[i])
+                perturbed_sequence.append(dictionary[token])
+            i += 1
 
-        return format_code(' '.join(perturbed_sequence), self.language)
+        return format_code(' '.join(perturbed_sequence), Language.Cpp)

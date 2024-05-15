@@ -1,4 +1,5 @@
 import random
+import time
 from typing import List, Set
 
 from common.compileSourceCode import is_syntactically_correct
@@ -9,6 +10,7 @@ from counterfactuals2.misc.language import Language
 from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
 from counterfactuals2.searchAlgorithms.AbstractSearchAlgorithm import AbstractSearchAlgorithm
 from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
+from counterfactuals2.unmasker.AbstractUnmasker import AbstractUnmasker
 
 
 def no_duplicate(counterfactuals: List[Counterfactual], gene_doc: str) -> bool:
@@ -21,26 +23,34 @@ def no_duplicate(counterfactuals: List[Counterfactual], gene_doc: str) -> bool:
 class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
     def __init__(self, tokenizer: AbstractTokenizer, evaluator: AbstractClassifier, perturber: AbstractPerturber,
-                 language: Language, iterations: int = 10, gene_pool_size: int = 50, kill_ratio: float = .3,
-                 allow_syntax_errors_in_counterfactuals: bool = True):
-        super().__init__(tokenizer, evaluator, language)
+                 iterations: int = 10, gene_pool_size: int = 50, kill_ratio: float = .3, allow_syntax_errors_in_counterfactuals: bool = True):
+        super().__init__(tokenizer, evaluator)
         self.iterations = iterations
         self.gene_pool_size = gene_pool_size
         self.kill_ratio = kill_ratio
         self.perturber = perturber
         self.allow_syntax_errors_in_counterfactuals = allow_syntax_errors_in_counterfactuals
 
+    def get_perturber(self) -> AbstractPerturber | None:
+        return self.perturber
+
+    def get_unmasker(self) -> AbstractUnmasker | None:
+        return self.tokenizer.unmasker
+
     def perform_search(self, source_code: str, number_of_tokens_in_src: int, dictionary: List[str], original_class: any,
                        original_confidence: float, original_tokens: List[int]) -> List[Counterfactual]:
         random.seed(1)
-        dictionary_length = len(dictionary)
+        original_dictionary_length = len(dictionary)
 
         gene_pool: List[Entry] = []
         counterfactuals: List[Counterfactual] = []
 
+        start_time = time.time()
+
         for i in range(self.gene_pool_size):  # add random start population
             entry = Entry("", 0, [*original_tokens])
-            self.perturber.perturb_in_place(entry.document_indices, dictionary_length)
+            self.perturber.perturb_in_place(entry.document_indices, original_dictionary_length)
+            entry.number_of_changes += 1
             gene_pool.append(entry)
 
         for iteration in range(self.iterations):
@@ -52,12 +62,12 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
             to_remove: Set[Entry] = set()
 
             for gene in gene_pool:
-                gene_doc = self.tokenizer.to_string(dictionary, gene.document_indices)
+                gene_doc = self.tokenizer.to_string_unmasked(dictionary, gene.document_indices)
                 gene_classification, gene_score = self.classifier.classify(gene_doc)
                 if self.allow_syntax_errors_in_counterfactuals:
                     is_syntactically_correct_code = True
                 else:
-                    is_syntactically_correct_code = is_syntactically_correct(gene_doc, self.language)
+                    is_syntactically_correct_code = is_syntactically_correct(gene_doc, Language.Cpp)
                 current_fitness = fitness(is_syntactically_correct_code, gene, number_of_tokens_in_src,
                                           original_class, original_confidence, gene_classification, gene_score)
 
@@ -66,7 +76,7 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
                 if gene_classification != original_class:
                     if is_syntactically_correct_code and no_duplicate(counterfactuals, gene_doc):
-                        counterfactuals.append(Counterfactual(gene_doc, current_fitness))
+                        counterfactuals.append(Counterfactual(gene_doc, current_fitness, start_time, original_dictionary_length, gene.number_of_changes, len(gene.document_indices)))
                         to_remove.add(gene)  # todo really remove, or keep in gene pool to hopefully make it better?
 
             # remove counterfactuals
@@ -78,16 +88,13 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
             kills = int(self.kill_ratio * len(gene_pool))
 
             best = get_best(gene_pool)
-            best_killed = False
             for i in range(kills):
                 index = roulette_worst(gene_pool)
                 to_kill = gene_pool[index]
                 if to_kill == best:
-                    best_killed = True
-                del gene_pool[index]
-
-            if best_killed:
-                gene_pool.insert(len(gene_pool), best)
+                    pass
+                else:
+                    del gene_pool[index]
 
             print("best: fitness", best.fitness, " candidates ", best.document_indices, " best doc")
             print(self.tokenizer.to_string(dictionary, best.document_indices))
@@ -116,7 +123,8 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
                         mutations += 1
                         to_mutate = gene_pool[random.randint(0, len(gene_pool) - 1)]
                         mutated = to_mutate.clone()
-                        self.perturber.perturb_in_place(mutated.document_indices, dictionary_length)
+                        self.perturber.perturb_in_place(mutated.document_indices, len(dictionary))
+                        mutated.number_of_changes += 1
                         gene_pool.append(mutated)
 
                 print(mutations, "mutations")
@@ -136,16 +144,14 @@ def make_offspring(a: Entry, b: Entry):
         longer = a.document_indices
 
     shorter_length = len(shorter)
-    for i in range(shorter_length):
-        if random.random() < .5:
-            new_indices.append(shorter[i])
-        else:
-            new_indices.append(longer[i])
+    pivot = int(shorter_length * random.random())
+    for i in range(pivot):
+        new_indices.append(shorter[i])
 
-    for i in range(len(longer) - shorter_length):
-        new_indices.append(longer[i + shorter_length])
+    for i in range(len(longer) - pivot):
+        new_indices.append(longer[i + pivot])
 
-    return Entry(0, 0, new_indices)
+    return Entry(0, 0, new_indices, max(a.number_of_changes, b.number_of_changes) + 1)
 
 
 # def fitness(entry: Entry, document_length: int, initial_score: float, current_score: float) -> float:
@@ -162,12 +168,8 @@ def fitness(is_syntactically_correct_code: bool, entry: Entry, document_length: 
             initial_score: float,
             current_classification: any, current_score: float) -> float:
     if initial_classification == current_classification:
-        score = initial_score - current_score
-    else:
-        if current_score < 0.0001:
-            score = 1000000
-        else:
-            score = 1.0 / current_score
+        return 100000
+    score = initial_score - current_score
     if not is_syntactically_correct_code:
         score *= 0.25
     delta_length = abs(len(entry.document_indices) - document_length)
