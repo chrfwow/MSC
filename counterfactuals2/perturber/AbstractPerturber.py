@@ -2,12 +2,8 @@ from typing import List
 
 
 class AbstractPerturber:
-    def perturb(self, source: List[int], dictionary_length: int) -> List[int]:
-        result = [*source]
-        self.perturb_in_place(result, dictionary_length)
-        return result
-
-    def perturb_in_place(self, source: List[int], dictionary_length: int):
+    def perturb_in_place(self, source: List[int], dictionary_length: int) -> int:
+        """Returns the original value of the changed entry before change"""
         raise NotImplementedError
 
     def perturb_at_index(self, index: int, source: List[int], dictionary_length: int):

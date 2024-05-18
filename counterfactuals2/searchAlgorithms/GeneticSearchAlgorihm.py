@@ -6,6 +6,8 @@ from common.compileSourceCode import is_syntactically_correct
 from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
 from counterfactuals2.misc.Counterfactual import Counterfactual
 from counterfactuals2.misc.Entry import Entry
+from counterfactuals2.misc.GeneticSearchParameters import GeneticSearchParameters
+from counterfactuals2.misc.SearchParameters import SearchParameters
 from counterfactuals2.misc.language import Language
 from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
 from counterfactuals2.searchAlgorithms.AbstractSearchAlgorithm import AbstractSearchAlgorithm
@@ -23,13 +25,17 @@ def no_duplicate(counterfactuals: List[Counterfactual], gene_doc: str) -> bool:
 class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
     def __init__(self, tokenizer: AbstractTokenizer, evaluator: AbstractClassifier, perturber: AbstractPerturber,
-                 iterations: int = 10, gene_pool_size: int = 50, kill_ratio: float = .3, allow_syntax_errors_in_counterfactuals: bool = True):
-        super().__init__(tokenizer, evaluator)
+                 iterations: int = 10, gene_pool_size: int = 50, kill_ratio: float = .3, allow_syntax_errors_in_counterfactuals: bool = True, verbose=False):
+        super().__init__(tokenizer, evaluator, verbose)
         self.iterations = iterations
         self.gene_pool_size = gene_pool_size
         self.kill_ratio = kill_ratio
         self.perturber = perturber
         self.allow_syntax_errors_in_counterfactuals = allow_syntax_errors_in_counterfactuals
+        self.verbose = verbose
+
+    def get_parameters(self) -> SearchParameters:
+        return GeneticSearchParameters(self.iterations, self.gene_pool_size, self.kill_ratio, self.allow_syntax_errors_in_counterfactuals)
 
     def get_perturber(self) -> AbstractPerturber | None:
         return self.perturber
@@ -49,15 +55,16 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
         for i in range(self.gene_pool_size):  # add random start population
             entry = Entry("", 0, [*original_tokens])
-            self.perturber.perturb_in_place(entry.document_indices, original_dictionary_length)
+            entry.changed_values.append(self.perturber.perturb_in_place(entry.document_indices, original_dictionary_length))
             entry.number_of_changes += 1
             gene_pool.append(entry)
 
         for iteration in range(self.iterations):
-            print("iteration", iteration, "########################")
-            print("gene pool size", len(gene_pool))
-            print("already found", len(counterfactuals), "counterfactuals")
-            print("starting evaluation...")
+            if self.verbose:
+                print("iteration", iteration, "########################")
+                print("gene pool size", len(gene_pool))
+                print("already found", len(counterfactuals), "counterfactuals")
+                print("starting evaluation...")
 
             to_remove: Set[Entry] = set()
 
@@ -76,13 +83,15 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
                 if gene_classification != original_class:
                     if is_syntactically_correct_code and no_duplicate(counterfactuals, gene_doc):
-                        counterfactuals.append(Counterfactual(gene_doc, current_fitness, start_time, original_dictionary_length, gene.number_of_changes, len(gene.document_indices)))
-                        to_remove.add(gene)  # todo really remove, or keep in gene pool to hopefully make it better?
+                        changed_lines = [dictionary[i] for i in gene.changed_values]
+                        counterfactuals.append(Counterfactual(gene_doc, current_fitness, start_time, original_dictionary_length, gene.number_of_changes, len(gene.document_indices), changed_lines))
+                    to_remove.add(gene)  # todo really remove, or keep in gene pool to hopefully make it better?
 
             # remove counterfactuals
             gene_pool = list(filter(lambda entry: entry not in to_remove, gene_pool))
             if len(gene_pool) == 0:
-                print("only counterfactuals left")
+                if self.verbose:
+                    print("only counterfactuals left")
                 break
 
             kills = int(self.kill_ratio * len(gene_pool))
@@ -96,18 +105,22 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
                 else:
                     del gene_pool[index]
 
-            print("best: fitness", best.fitness, " candidates ", best.document_indices, " best doc")
-            print(self.tokenizer.to_string(dictionary, best.document_indices))
+            if self.verbose:
+                print("best: fitness", best.fitness, " candidates ", best.document_indices, " best doc")
+                print(self.tokenizer.to_string(dictionary, best.document_indices))
 
             pool_size = len(gene_pool)
-            print("killed ", kills, " genes because they were too bad")
+            if self.verbose:
+                print("killed ", kills, " genes because they were too bad")
             if pool_size == 0:
-                print("no genes left")
+                if self.verbose:
+                    print("no genes left")
                 break
 
             missing_genes = self.gene_pool_size - pool_size
             if missing_genes > 0:
-                print("making ", missing_genes, " new offspring or mutations")
+                if self.verbose:
+                    print("making ", missing_genes, " new offspring or mutations")
 
                 offspring = 0
                 mutations = 0
@@ -123,12 +136,13 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
                         mutations += 1
                         to_mutate = gene_pool[random.randint(0, len(gene_pool) - 1)]
                         mutated = to_mutate.clone()
-                        self.perturber.perturb_in_place(mutated.document_indices, len(dictionary))
+                        mutated.changed_values.append(self.perturber.perturb_in_place(mutated.document_indices, len(dictionary)))
                         mutated.number_of_changes += 1
                         gene_pool.append(mutated)
 
-                print(mutations, "mutations")
-                print(offspring, "offspring")
+                if self.verbose:
+                    print(mutations, "mutations")
+                    print(offspring, "offspring")
 
         return counterfactuals
 
@@ -151,7 +165,7 @@ def make_offspring(a: Entry, b: Entry):
     for i in range(len(longer) - pivot):
         new_indices.append(longer[i + pivot])
 
-    return Entry(0, 0, new_indices, max(a.number_of_changes, b.number_of_changes) + 1)
+    return Entry(0, 0, new_indices, max(a.number_of_changes, b.number_of_changes) + 1, list({*a.changed_values, *b.changed_values}))
 
 
 # def fitness(entry: Entry, document_length: int, initial_score: float, current_score: float) -> float:
@@ -167,8 +181,8 @@ def fitness(is_syntactically_correct_code: bool, entry: Entry, document_length: 
             initial_classification: any,
             initial_score: float,
             current_classification: any, current_score: float) -> float:
-    if initial_classification == current_classification:
-        return 100000
+    if initial_classification != current_classification:
+        return 10000000
     score = initial_score - current_score
     if not is_syntactically_correct_code:
         score *= 0.25

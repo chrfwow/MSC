@@ -6,16 +6,18 @@ from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
 from counterfactuals2.misc.Counterfactual import Counterfactual
 import torch
 from captum.attr import LayerIntegratedGradients
-from captum.attr import visualization, TokenReferenceBase
+from captum.attr import TokenReferenceBase
 
-from counterfactuals2.misc.SearchResults import SearchResult
+from counterfactuals2.misc.LigSearchParameters import LigSearchParameters
+from counterfactuals2.misc.SearchParameters import SearchParameters
+from counterfactuals2.misc.SearchResults import SearchResult, SearchError, InvalidClassificationResult
 from counterfactuals2.misc.language import Language
 from counterfactuals2.searchAlgorithms.AbstractSearchAlgorithm import AbstractSearchAlgorithm
 
 
 class LigSearch(AbstractSearchAlgorithm):
-    def __init__(self, classifier: AbstractClassifier, max_iterations: int = 100, steps_per_iteration: int = 50, recompute_attributions_for_each_iteration: bool = True):
-        super().__init__(None, classifier)
+    def __init__(self, classifier: AbstractClassifier, max_iterations: int = 100, steps_per_iteration: int = 50, recompute_attributions_for_each_iteration: bool = True, verbose: bool = False):
+        super().__init__(None, classifier, verbose)
         self.max_iterations = max_iterations
         self.steps_per_iteration = steps_per_iteration
         self.recompute_attributions_for_each_iteration = recompute_attributions_for_each_iteration
@@ -23,19 +25,34 @@ class LigSearch(AbstractSearchAlgorithm):
         self.token_reference = TokenReferenceBase(reference_token_idx=self.classifier.get_padding_token_id())
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.classifier.prepare_for_lig(self.device)
+        self.verbose = verbose
+
+    def get_parameters(self) -> SearchParameters:
+        return LigSearchParameters(self.max_iterations, self.steps_per_iteration, self.recompute_attributions_for_each_iteration)
 
     def search(self, source_code: str) -> SearchResult:
         """Performs the search for counterfactuals. Do not override this function"""
         start = time.time()
-        original_class, original_confidence = self.classifier.classify(source_code)
+        try:
+            original_class, original_confidence = self.classifier.classify(source_code)
 
-        print("input classified as", original_class, "with a confidence of", original_confidence)
+            if self.verbose:
+                print("input classified as", original_class, "with a confidence of", original_confidence)
 
-        result = self.perform_lig_search(source_code, original_class)
+            if original_class:
+                return InvalidClassificationResult(source_code, original_class, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), 0, self.get_parameters())
 
-        end = time.time()
-        print("search took", end - start, "seconds")
-        return SearchResult(source_code, result, self, self.classifier, None, None, None, end - start)
+            result = self.perform_lig_search(source_code, original_class)
+
+            end = time.time()
+            if self.verbose:
+                print("search took", end - start, "seconds")
+            return SearchResult(source_code, result, self, self.classifier, None, None, None, end - start, self.get_parameters())
+        except Exception as e:
+            if self.verbose:
+                print(e)
+            end = time.time()
+            return SearchError(source_code, e, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), end - start, self.get_parameters())
 
     def predict(self, inputs):
         attention_mask = torch.where(inputs == self.classifier.get_padding_token_id(), 0, 1)
@@ -92,7 +109,7 @@ class LigSearch(AbstractSearchAlgorithm):
 
         return input_ids, attributions
 
-    def eliminate_highest_attribution(self, input_ids, attributes):
+    def eliminate_highest_attribution(self, input_ids, attributes) -> int:
         best_index = -1
         best_attribution = -999999
 
@@ -101,34 +118,50 @@ class LigSearch(AbstractSearchAlgorithm):
                 best_index = i
                 best_attribution = attributes[i]
 
-        print("deleting token ", input_ids[best_index], ":", self.classifier.token_id_to_string(input_ids[best_index]), "with attribution", attributes[best_index])
+        if self.verbose:
+            print("deleting token ", input_ids[best_index], ":", self.classifier.token_id_to_string(input_ids[best_index]), "with attribution", attributes[best_index])
+
+        token_id = input_ids[best_index]
 
         del input_ids[best_index]
         del attributes[best_index]
+
+        return token_id
 
     def perform_lig_search(self, source_code, original_class) -> List[Counterfactual]:
         counterfactuals: List[Counterfactual] = []
         target_class = not original_class
         iterations = 0
+        start_time = time.time()
+        number_of_tokens_in_input = -1
+        number_of_changes = 0
+
+        changed_values: List[int] = []
 
         if not self.recompute_attributions_for_each_iteration:
             input_ids, attributes = self.get_lig_attributes(source_code, target_class)
+            number_of_tokens_in_input = len(input_ids)
             if len(input_ids) < 1:
                 return counterfactuals
 
         while iterations < self.max_iterations:
-            print("iteration #", iterations, end="")
+            if self.verbose:
+                print("iteration #", iterations, end="")
             iterations += 1
 
             if self.recompute_attributions_for_each_iteration:
                 input_ids, attributes = self.get_lig_attributes(source_code, target_class)
+                if number_of_tokens_in_input < 0:
+                    number_of_tokens_in_input = len(input_ids)
 
             if len(input_ids) <= 1:  # one element will be removed in the next line
                 return counterfactuals
 
-            self.eliminate_highest_attribution(input_ids, attributes)
+            changed_values.append(self.eliminate_highest_attribution(input_ids, attributes))
+            number_of_changes += 1
 
-            print(" with", len(input_ids), "tokens remaining")
+            if self.verbose:
+                print(" with", len(input_ids), "tokens remaining")
 
             src = ""
             for id in input_ids:
@@ -138,16 +171,18 @@ class LigSearch(AbstractSearchAlgorithm):
                         src += c
                     elif c == '\u2581' or c == '\u0120' or c == '\u010a':
                         src += ' '
-                    else:
+                    elif self.verbose:
                         print("Unknown character", c.encode("unicode_escape"))
 
             source_code = format_code(src, Language.Cpp)
-            print(source_code)
+            if self.verbose:
+                print(source_code)
 
             new_class, new_confidence = self.classifier.classify(source_code)
 
             if new_class != original_class:
-                counterfactuals.append(Counterfactual(source_code, iterations))
+                changed_lines = [self.classifier.token_id_to_string(i) for i in changed_values]
+                counterfactuals.append(Counterfactual(source_code, iterations, start_time, number_of_tokens_in_input, number_of_changes, len(input_ids), changed_lines))
                 return counterfactuals
 
         return counterfactuals

@@ -6,18 +6,21 @@ from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
 
 
 class MutationPerturber(AbstractPerturber):
-    def perturb_in_place(self, source: List[int], dictionary_length: int):
+    def perturb_in_place(self, source: List[int], dictionary_length: int) -> int:
+        index = int(len(source) * random.random())
+        original = source[index]
         what = random.random()
         if what < .3:  # add candidate
-            source.insert(int(len(source) * random.random()), int(dictionary_length * random.random()))
+            source.insert(index, int(dictionary_length * random.random()))
         elif what < .6:  # remove candidate
-            del source[int(len(source) * random.random())]
+            del source[index]
         else:  # change candidate
-            source[int(len(source) * random.random())] = int(dictionary_length * random.random())
+            source[index] = int(dictionary_length * random.random())
+        return original
 
     def perturb_at_index(self, index: int, source: List[int], dictionary_length: int):
         what = random.random()
         if what < .5:  # remove candidate
             source[index] = AbstractTokenizer.EMPTY_TOKEN_INDEX
         else:  # change candidate
-            source[int(len(source) * random.random())] = int(dictionary_length * random.random())
+            source[index] = int(dictionary_length * random.random())

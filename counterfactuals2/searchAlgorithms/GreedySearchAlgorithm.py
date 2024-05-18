@@ -4,6 +4,8 @@ from typing import List
 
 from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
 from counterfactuals2.misc.Counterfactual import Counterfactual
+from counterfactuals2.misc.GreedySearchParameters import GreedySearchParameters
+from counterfactuals2.misc.SearchParameters import SearchParameters
 from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
 from counterfactuals2.searchAlgorithms.AbstractSearchAlgorithm import AbstractSearchAlgorithm
 from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
@@ -16,13 +18,14 @@ class KEntry:
     masked_indices: List[int]
     confidence_delta: float = 0
 
-    def __init__(self, classification: any, document_indices: List[int], number_of_changes: int = 0):
+    def __init__(self, classification: any, document_indices: List[int], number_of_changes: int = 0, changed_values: List[int] = []):
         self.classification = classification
         self.document_indices = document_indices
         self.number_of_changes = number_of_changes
+        self.changed_values = changed_values
 
     def clone(self):
-        return KEntry(self.classification, list(self.document_indices), self.number_of_changes)
+        return KEntry(self.classification, list(self.document_indices), self.number_of_changes, list(self.changed_values))
 
     def __lt__(self, other):  # <, exactly inverse because python knows only a min heap, and we want a max heap
         return self.confidence_delta >= other.confidence_delta
@@ -42,13 +45,16 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
     def __init__(self, max_search_steps: int, unmasker: AbstractUnmasker, tokenizer: AbstractTokenizer,
                  classifier: AbstractClassifier, perturber: AbstractPerturber, verbose: bool = False, max_age: int = 25,
                  max_survivors: int = 10):
-        super().__init__(tokenizer, classifier)
+        super().__init__(tokenizer, classifier, verbose)
         self.max_search_steps = max_search_steps
         self.unmasker = unmasker
         self.perturber = perturber
         self.verbose = verbose
         self.max_age = max_age
         self.max_survivors = max_survivors
+
+    def get_parameters(self) -> SearchParameters:
+        return GreedySearchParameters(self.max_search_steps, self.max_age, self.max_survivors)
 
     def get_perturber(self) -> AbstractPerturber | None:
         return self.perturber
@@ -70,10 +76,10 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
 
         for i in range(number_of_tokens_in_src):
             current = original_entry.clone()
-            self.perturber.perturb_at_index(i, current.document_indices, len(dictionary))
+            current.changed_values.append(self.perturber.perturb_at_index(i, current.document_indices, len(dictionary)))
             current.number_of_changes += 1
 
-            result = self.check(dictionary, current, original_class)
+            result = self.check(dictionary, current, original_class, start_time, original_dictionary_length)
 
             if type(result) == Counterfactual:
                 counterfactuals.append(result)
@@ -95,7 +101,7 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
                 print("#", step + number_of_tokens_in_src, "popped the best with a delta of", best.confidence_delta)
 
             current = best.clone()
-            self.perturber.perturb_in_place(current.document_indices, len(dictionary))
+            current.changed_values.append(self.perturber.perturb_in_place(current.document_indices, len(dictionary)))
             current.number_of_changes += 1
 
             result = self.check(dictionary, current, original_class, start_time, original_dictionary_length)
@@ -144,6 +150,7 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
         if current_classification != original_classification:
             if self.verbose:
                 print("^^^^^^^ was a counterfactual")
-            return Counterfactual(src, float(score), start_time, number_of_tokens_in_input, entry.number_of_changes, len(entry.document_indices))
+            changed_lines = [dictionary[i] for i in entry.changed_values]
+            return Counterfactual(src, float(score), start_time, number_of_tokens_in_input, entry.number_of_changes, len(entry.document_indices), changed_lines)
         else:
             return float(score)

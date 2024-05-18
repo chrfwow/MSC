@@ -11,8 +11,10 @@ class SearchResult:
             perturber,
             tokenizer,
             unmasker,
-            search_duration: float
+            search_duration: float,
+            parameters
     ):
+        self.paramters = parameters
         self.input = input
         self.search_duration = search_duration
         self.counterfactuals = counterfactuals
@@ -48,5 +50,62 @@ class SearchResult:
             return res
         res += "\nThese are:\n"
         for i in range(len(self.counterfactuals)):
-            res += "#" + str(i) + ":\n" + self.counterfactuals[i].to_string()
+            res += "#" + str(i) + ":\n" + self.counterfactuals[i].to_string() + "\n"
+        return res
+
+
+class SearchError(SearchResult):
+    def __init__(
+            self,
+            input: str,
+            cause: Exception,
+            search_algorithm,
+            classifier,
+            perturber,
+            tokenizer,
+            unmasker,
+            search_duration: float,
+            parameters
+    ):
+        super().__init__(input, [], search_algorithm, classifier, perturber, tokenizer, unmasker, search_duration, parameters)
+        self.cause = str(cause)
+
+    def to_string(self) -> str:
+        res = "Search for " + \
+              self.search_algorithm + \
+              " with classifier " + \
+              self.classifier + ", perturber " + \
+              self.perturber + ", tokenizer " + \
+              self.tokenizer + ", unmasker " + \
+              self.unmasker + " took " + \
+              str(self.search_duration) + "sec and produced en error: " + \
+              str(self.cause)
+        return res
+
+
+class InvalidClassificationResult(SearchResult):
+    def __init__(
+            self,
+            input: str,
+            classification,
+            search_algorithm,
+            classifier,
+            perturber,
+            tokenizer,
+            unmasker,
+            search_duration: float,
+            parameters
+    ):
+        super().__init__(input, [], search_algorithm, classifier, perturber, tokenizer, unmasker, search_duration, parameters)
+        self.classification = classification
+
+    def to_string(self) -> str:
+        res = "Search for " + \
+              self.search_algorithm + \
+              " with classifier " + \
+              self.classifier + ", perturber " + \
+              self.perturber + ", tokenizer " + \
+              self.tokenizer + ", unmasker " + \
+              self.unmasker + " took " + \
+              str(self.search_duration) + "sec produced a classification of " + str(self.classification) + " for the input"
         return res

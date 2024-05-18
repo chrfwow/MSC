@@ -9,6 +9,11 @@ class AbstractTokenizer:
     EMPTY_TOKEN_INDEX = -2
 
     def __init__(self, unmasker: AbstractUnmasker | None = None):
+        self.mask = None
+        self.unmasker = None
+        self.set_unmasker(unmasker)
+
+    def set_unmasker(self, unmasker: AbstractUnmasker | None):
         self.unmasker = unmasker
         if unmasker is None:
             self.mask = None

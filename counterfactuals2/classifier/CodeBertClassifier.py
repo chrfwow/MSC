@@ -1,4 +1,4 @@
-from transformers import PLBartForSequenceClassification, AutoTokenizer, RobertaConfig, RobertaForSequenceClassification
+from transformers import AutoTokenizer, RobertaConfig, RobertaForSequenceClassification
 
 from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
 import torch
