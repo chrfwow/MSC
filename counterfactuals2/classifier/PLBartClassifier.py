@@ -6,7 +6,7 @@ import torch
 
 class PLBartClassifier(AbstractClassifier):
     path = "uclanlp/plbart-c-cpp-defect-detection"
-    tokenizer = AutoTokenizer.from_pretrained(path)
+    tokenizer = AutoTokenizer.from_pretrained(path, truncation=True)
 
     def __init__(self, device):
         self.model = PLBartForSequenceClassification.from_pretrained(self.path, output_attentions=True).to(device)
@@ -15,7 +15,7 @@ class PLBartClassifier(AbstractClassifier):
     def classify(self, source_code: str) -> (bool, float):
         """Evaluates the input and returns a tuple with (result, confidence). A result of 0 means secure code,
         1 is insecure"""
-        inputs = self.tokenizer(source_code, return_tensors="pt")
+        inputs = self.tokenizer(source_code, return_tensors="pt", truncation=True)
         input_ids = inputs["input_ids"].to(self.device)
         attention_mask = inputs["attention_mask"].to(self.device)
 
@@ -23,6 +23,9 @@ class PLBartClassifier(AbstractClassifier):
             logits = self.model(input_ids=input_ids, attention_mask=attention_mask).logits
             clazz = logits.argmax().item()
             return int(clazz) == 0, float(logits[0][clazz])
+
+    def get_max_tokens(self) -> int:
+        return self.tokenizer.model_max_length
 
     def get_embeddings(self):
         """Returns the embeddings to be used by Layer Integrated Gradients"""
@@ -34,7 +37,7 @@ class PLBartClassifier(AbstractClassifier):
 
     def prepare_for_lig(self, device):
         """Prepares the model for LIG by moving it to the given device next to other measures"""
-        self.model.to(device)
+        self.model = self.model.to(device)
         self.model.eval()
         self.model.zero_grad()
 
@@ -60,4 +63,4 @@ class PLBartClassifier(AbstractClassifier):
 
     def tokenize(self, input: str) -> dict:
         """Uses the model spcific tokenizer to tokenize the input string"""
-        return self.tokenizer(input)
+        return self.tokenizer(input, truncation=True)

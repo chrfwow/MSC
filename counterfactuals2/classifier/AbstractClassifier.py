@@ -3,6 +3,9 @@ class AbstractClassifier:
         """Evaluates the input and returns a tuple with (result, confidence). Result is True iff source_code is assumed to be ok"""
         raise NotImplementedError
 
+    def get_max_tokens(self) -> int:
+        raise NotImplementedError
+
     def get_embeddings(self):
         """Returns the embeddings to be used by Layer Integrated Gradients"""
         raise NotImplementedError

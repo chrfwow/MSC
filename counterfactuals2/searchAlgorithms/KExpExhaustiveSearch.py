@@ -90,11 +90,17 @@ class KExpExhaustiveSearch(AbstractSearchAlgorithm):
         for i in range(len(entry.document_indices)):
             if i not in entry.masked_indices:
                 current_doc = entry.clone()
-                current_doc.masked_indices.append(i)
-                current_doc.changed_values.append(self.perturber.perturb_at_index(i, current_doc.document_indices, dict_len))
-                current_doc.number_of_changes += 1
+                try:
+                    current_doc.masked_indices.append(i)
+                    current_doc.changed_values.append(current_doc.document_indices[i])
+                    self.perturber.perturb_at_index(i, current_doc.document_indices, dict_len)
+                    current_doc.number_of_changes += 1
 
-                counterfactual = self.check(dictionary, current_doc, i, original_classification, start_time, number_of_tokens_in_input)
+                    counterfactual = self.check(dictionary, current_doc, i, original_classification, start_time, number_of_tokens_in_input)
+                except Exception as e:
+                    if self.verbose:
+                        print(e)
+                    continue
                 if counterfactual is not None and no_duplicate(counterfactual, explanations):
                     explanations.append(counterfactual)
                     if self.verbose:
@@ -111,7 +117,7 @@ class KExpExhaustiveSearch(AbstractSearchAlgorithm):
         output = self.classifier.classify(src)
         current_classification, score = output[0] if isinstance(output, list) else output
         if current_classification != original_classification:
-            changed_lines = [dictionary[i] for i in entry.changed_values]
+            changed_lines = ["" if i == AbstractTokenizer.EMPTY_TOKEN_INDEX else dictionary[i] for i in entry.changed_values]
             return Counterfactual(src, float(score), start_time, number_of_tokens_in_input, entry.number_of_changes, len(entry.document_indices), changed_lines)
         else:
             return None

@@ -9,7 +9,7 @@ import torch.nn.functional as functional
 class GraphCodeBertClassifier(AbstractClassifier):
     path = "D:/A_Uni/A_MasterThesis/CodeBertModel/models/GraphCodeBERT/Vulnerability Detection/model/model.bin"
     model_type = "microsoft/graphcodebert-base"
-    tokenizer = AutoTokenizer.from_pretrained(model_type)
+    tokenizer = AutoTokenizer.from_pretrained(model_type, truncation=True)
 
     def __init__(self, device):
         config = RobertaConfig.from_pretrained(self.model_type)
@@ -21,12 +21,15 @@ class GraphCodeBertClassifier(AbstractClassifier):
 
     def classify(self, source_code: str) -> (bool, float):
         """Evaluates the input and returns a tuple with (result, confidence)"""
-        inputs = self.tokenizer(source_code, return_tensors="pt")
+        inputs = self.tokenizer(source_code, return_tensors="pt", truncation=True)
         input_ids = inputs["input_ids"].to(self.device)
 
         with torch.no_grad():
             prob = functional.sigmoid(self.model(input_ids)).item()
             return round(prob) == 0, prob
+
+    def get_max_tokens(self) -> int:
+        return self.tokenizer.model_max_length
 
     def get_embeddings(self):
         """Returns the embeddings to be used by Layer Integrated Gradients"""
@@ -64,7 +67,7 @@ class GraphCodeBertClassifier(AbstractClassifier):
 
     def tokenize(self, input: str) -> dict:
         """Uses the model spcific tokenizer to tokenize the input string"""
-        return self.tokenizer(input)
+        return self.tokenizer(input, truncation=True)
 
 
 class Model(nn.Module):

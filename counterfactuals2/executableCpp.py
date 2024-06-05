@@ -1,13 +1,11 @@
 import clang.cindex
 import torch
 
-from counterfactuals2.classifier.CodeT5Classifier import CodeT5Classifier
-from counterfactuals2.classifier.GraphCodeBertClassifier import GraphCodeBertClassifier
-from counterfactuals2.classifier.PLBartClassifier import PLBartClassifier
-from counterfactuals2.searchAlgorithms.GreedySearchAlgorithm import GreedySearchAlgorithm
-
 clang.cindex.Config.set_library_file('D:/Programme/LLVM/bin/libclang.dll')
 index = clang.cindex.Index.create()
+
+from counterfactuals2.classifier.PLBartClassifier import PLBartClassifier
+from counterfactuals2.searchAlgorithms.GreedySearchAlgorithm import GreedySearchAlgorithm
 
 from counterfactuals2.tokenizer.LineTokenizer import LineTokenizer
 from counterfactuals2.perturber.RemoveTokenPerturber import RemoveTokenPerturber

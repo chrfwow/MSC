@@ -2,7 +2,7 @@ import json
 from typing import List
 
 
-def load_code_x_glue(keep: int = -1):
+def load_code_x_glue(skip: int = 0, keep: int = -1):
     file = open("D:/A_Uni/A_MasterThesis/CodeXGlue/function.json")
     content = file.read()
     dataset = json.loads(content)
@@ -12,8 +12,11 @@ def load_code_x_glue(keep: int = -1):
     i = 0
     for entry in dataset:
         if entry["target"] == 1:
+            if skip > 0:
+                skip -= 1
+                continue
             vulnerable.append(entry["func"].replace("\n\n", "\n"))
             i += 1
-            if i > keep:
+            if i >= keep:
                 break
     return vulnerable

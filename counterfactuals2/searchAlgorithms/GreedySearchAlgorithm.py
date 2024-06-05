@@ -76,10 +76,16 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
 
         for i in range(number_of_tokens_in_src):
             current = original_entry.clone()
-            current.changed_values.append(self.perturber.perturb_at_index(i, current.document_indices, len(dictionary)))
+            self.perturber.perturb_at_index(i, current.document_indices, len(dictionary))
+            current.changed_values.append(i)
             current.number_of_changes += 1
 
-            result = self.check(dictionary, current, original_class, start_time, original_dictionary_length)
+            try:
+                result = self.check(dictionary, current, original_class, start_time, original_dictionary_length)
+            except Exception as e:
+                if self.verbose:
+                    print(e)
+                continue
 
             if type(result) == Counterfactual:
                 counterfactuals.append(result)
@@ -104,7 +110,12 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
             current.changed_values.append(self.perturber.perturb_in_place(current.document_indices, len(dictionary)))
             current.number_of_changes += 1
 
-            result = self.check(dictionary, current, original_class, start_time, original_dictionary_length)
+            try:
+                result = self.check(dictionary, current, original_class, start_time, original_dictionary_length)
+            except Exception as e:
+                if self.verbose:
+                    print(e)
+                continue
             if type(result) == Counterfactual:
                 del pool[best_index]
                 if no_duplicate(result, counterfactuals):
@@ -114,7 +125,8 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
                 current.confidence_delta = delta
                 pool.append(current)
 
-        print("search completed, search limit reached")
+        if self.verbose:
+            print("search completed, search limit reached")
         return counterfactuals
 
     def get_roulette_best_index(self, pool: List[KEntry]) -> int:
@@ -150,7 +162,7 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
         if current_classification != original_classification:
             if self.verbose:
                 print("^^^^^^^ was a counterfactual")
-            changed_lines = [dictionary[i] for i in entry.changed_values]
+            changed_lines = ["" if i == AbstractTokenizer.EMPTY_TOKEN_INDEX else dictionary[i] for i in entry.changed_values]
             return Counterfactual(src, float(score), start_time, number_of_tokens_in_input, entry.number_of_changes, len(entry.document_indices), changed_lines)
         else:
             return float(score)

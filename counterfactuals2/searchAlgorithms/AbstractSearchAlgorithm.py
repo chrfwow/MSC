@@ -19,16 +19,29 @@ class AbstractSearchAlgorithm:
     def search(self, source_code: str) -> SearchResult:
         """Performs the search for counterfactuals. Do not override this function"""
         start = time.time()
+        number_of_tokens_in_src = 0
         try:
-
             number_of_tokens_in_src, dictionary = self.tokenizer.tokenize(source_code)
+
+            truncated = False
+            max_tokens = self.classifier.get_max_tokens()
+            if number_of_tokens_in_src > max_tokens:
+                if self.verbose:
+                    print("input too long, truncating from " + str(number_of_tokens_in_src) + " tokens to " + str(max_tokens))
+                truncated = True
+                number_of_tokens_in_src = max_tokens
+                tokens = []
+                for t in range(max_tokens):
+                    tokens.append(t)
+                source_code = self.tokenizer.to_string(dictionary, tokens)
+
             original_class, original_confidence = self.classifier.classify(source_code)
 
             if self.verbose:
                 print("input classified as", original_class, "with a confidence of", original_confidence)
 
             if original_class:
-                return InvalidClassificationResult(source_code, original_class, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), 0, self.get_parameters())
+                return InvalidClassificationResult(source_code, number_of_tokens_in_src, original_class, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), 0, self.get_parameters(), truncated)
 
             original_tokens = []
             for i in range(number_of_tokens_in_src):
@@ -38,12 +51,17 @@ class AbstractSearchAlgorithm:
             end = time.time()
             if self.verbose:
                 print("search took", end - start, "seconds")
-            return SearchResult(source_code, result, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), end - start, self.get_parameters())
+            return SearchResult(source_code, number_of_tokens_in_src, result, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), end - start, self.get_parameters(), truncated)
+        except TypeError as e:
+            raise e
         except Exception as e:
+            if not str(e).startswith("The expanded size"):
+                raise e
+            print(type(e), e)
             if self.verbose:
                 print(e)
             end = time.time()
-            return SearchError(source_code, e, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), end - start, self.get_parameters())
+            return SearchError(source_code, number_of_tokens_in_src, e, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), end - start, self.get_parameters(), truncated)
 
     def get_parameters(self) -> SearchParameters:
         raise NotImplementedError

@@ -7,7 +7,7 @@ import torch
 class CodeT5Classifier(AbstractClassifier):
     path = "mcanoglu/Salesforce-codet5p-770m-finetuned-defect-detection"
     model = AutoModelForSequenceClassification.from_pretrained(path)
-    tokenizer = AutoTokenizer.from_pretrained(path)
+    tokenizer = AutoTokenizer.from_pretrained(path, truncation=True)
 
     def __init__(self, device):
         self.device = device
@@ -15,13 +15,16 @@ class CodeT5Classifier(AbstractClassifier):
 
     def classify(self, source_code: str) -> (bool, float):
         """Evaluates the input and returns a tuple with (result, confidence). Result is True iff source_code is assumed to be ok"""
-        inputs = self.tokenizer(source_code, return_tensors="pt")
+        inputs = self.tokenizer(source_code, return_tensors="pt", truncation=True)
         input_ids = inputs["input_ids"].to(self.device)
         attention_mask = inputs["attention_mask"].to(self.device)
         with torch.no_grad():
             logits = self.model(input_ids=input_ids, attention_mask=attention_mask).logits
             clazz = logits.argmax().item()
             return int(clazz) == 0, float(logits[0][clazz])
+
+    def get_max_tokens(self) -> int:
+        return self.tokenizer.model_max_length
 
     def get_embeddings(self):
         """Returns the embeddings to be used by Layer Integrated Gradients"""
@@ -59,4 +62,4 @@ class CodeT5Classifier(AbstractClassifier):
 
     def tokenize(self, input: str) -> dict:
         """Uses the model spcific tokenizer to tokenize the input string"""
-        return self.tokenizer(input)
+        return self.tokenizer(input, truncation=True)

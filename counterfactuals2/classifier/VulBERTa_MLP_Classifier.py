@@ -4,7 +4,7 @@ from transformers import pipeline
 
 class VulBERTa_MLP_Classifier(AbstractClassifier):
     def __init__(self, device):
-        self.pipe = pipeline("text-classification", model="claudios/VulBERTa-MLP-Devign", trust_remote_code=True, top_k=None, device=device)
+        self.pipe = pipeline("text-classification", model="claudios/VulBERTa-MLP-Devign", trust_remote_code=True, top_k=None, device=device, truncation=True)
 
     def classify(self, source_code: str) -> (bool, float):
         """Evaluates the input and returns a tuple with (result, confidence). Result is True iff source_code is assumed to be ok"""
@@ -17,6 +17,9 @@ class VulBERTa_MLP_Classifier(AbstractClassifier):
             return True, score_a
         else:
             return False, score_b
+
+    def get_max_tokens(self) -> int:
+        return self.pipe.tokenizer.model_max_length
 
     def get_embeddings(self):
         """Returns the embeddings to be used by Layer Integrated Gradients"""
@@ -54,4 +57,4 @@ class VulBERTa_MLP_Classifier(AbstractClassifier):
 
     def tokenize(self, input: str) -> dict:
         """Uses the model spcific tokenizer to tokenize the input string"""
-        return self.pipe.tokenizer(input)
+        return self.pipe.tokenizer(input, truncation=True)

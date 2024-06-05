@@ -55,7 +55,7 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
         for i in range(self.gene_pool_size):  # add random start population
             entry = Entry("", 0, [*original_tokens])
-            entry.changed_values.append(self.perturber.perturb_in_place(entry.document_indices, original_dictionary_length))
+            entry.changed_values.add(self.perturber.perturb_in_place(entry.document_indices, original_dictionary_length))
             entry.number_of_changes += 1
             gene_pool.append(entry)
 
@@ -69,8 +69,14 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
             to_remove: Set[Entry] = set()
 
             for gene in gene_pool:
-                gene_doc = self.tokenizer.to_string_unmasked(dictionary, gene.document_indices)
-                gene_classification, gene_score = self.classifier.classify(gene_doc)
+                if type(gene) == int:
+                    print("int????")
+                try:
+                    gene_doc = self.tokenizer.to_string_unmasked(dictionary, gene.document_indices)
+                    gene_classification, gene_score = self.classifier.classify(gene_doc)
+                except:
+                    to_remove.add(gene)
+                    continue
                 if self.allow_syntax_errors_in_counterfactuals:
                     is_syntactically_correct_code = True
                 else:
@@ -83,7 +89,12 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
 
                 if gene_classification != original_class:
                     if is_syntactically_correct_code and no_duplicate(counterfactuals, gene_doc):
-                        changed_lines = [dictionary[i] for i in gene.changed_values]
+                        for i in gene.changed_values:
+                            if type(i) != int:
+                                print("aaa", i)
+                            if i >= len(dictionary):
+                                print("oje", i)
+                        changed_lines = ["" if i == AbstractTokenizer.EMPTY_TOKEN_INDEX else dictionary[i] for i in gene.changed_values]
                         counterfactuals.append(Counterfactual(gene_doc, current_fitness, start_time, original_dictionary_length, gene.number_of_changes, len(gene.document_indices), changed_lines))
                     to_remove.add(gene)  # todo really remove, or keep in gene pool to hopefully make it better?
 
@@ -131,12 +142,12 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
                         offspring += 1
                         parent_a = roulette_best(gene_pool)
                         parent_b = roulette_best(gene_pool)
-                        gene_pool.append(make_offspring(parent_a, parent_b))
+                        gene_pool.append(make_offspring(parent_a, parent_b, dictionary))
                     else:
                         mutations += 1
                         to_mutate = gene_pool[random.randint(0, len(gene_pool) - 1)]
                         mutated = to_mutate.clone()
-                        mutated.changed_values.append(self.perturber.perturb_in_place(mutated.document_indices, len(dictionary)))
+                        mutated.changed_values.add(self.perturber.perturb_in_place(mutated.document_indices, len(dictionary)))
                         mutated.number_of_changes += 1
                         gene_pool.append(mutated)
 
@@ -147,7 +158,7 @@ class GeneticSearchAlgorithm(AbstractSearchAlgorithm):
         return counterfactuals
 
 
-def make_offspring(a: Entry, b: Entry):
+def make_offspring(a: Entry, b: Entry, dictionary):
     new_indices: List[int] = []
 
     if len(a.document_indices) < len(b.document_indices):
@@ -165,7 +176,11 @@ def make_offspring(a: Entry, b: Entry):
     for i in range(len(longer) - pivot):
         new_indices.append(longer[i + pivot])
 
-    return Entry(0, 0, new_indices, max(a.number_of_changes, b.number_of_changes) + 1, list({*a.changed_values, *b.changed_values}))
+    ret = Entry(0, 0, new_indices, max(a.number_of_changes, b.number_of_changes) + 1, {*a.changed_values, *b.changed_values})
+    for r in ret.changed_values:
+        if r >= len(dictionary):
+            print("ahhh", r, "max", len(dictionary))
+    return ret
 
 
 # def fitness(entry: Entry, document_length: int, initial_score: float, current_score: float) -> float:
