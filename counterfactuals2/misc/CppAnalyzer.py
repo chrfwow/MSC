@@ -1,3 +1,6 @@
+from counterfactuals2.clangInit import init_clang
+
+init_clang()
 import clang.cindex
 
 idx = clang.cindex.Index.create()

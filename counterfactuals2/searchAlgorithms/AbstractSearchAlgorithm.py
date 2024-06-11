@@ -21,7 +21,7 @@ class AbstractSearchAlgorithm:
         start = time.time()
         number_of_tokens_in_src = 0
         try:
-            number_of_tokens_in_src, dictionary = self.tokenizer.tokenize(source_code)
+            number_of_tokens_in_src, indices, dictionary = self.tokenizer.tokenize(source_code)
 
             truncated = False
             max_tokens = self.classifier.get_max_tokens()
@@ -30,10 +30,8 @@ class AbstractSearchAlgorithm:
                     print("input too long, truncating from " + str(number_of_tokens_in_src) + " tokens to " + str(max_tokens))
                 truncated = True
                 number_of_tokens_in_src = max_tokens
-                tokens = []
-                for t in range(max_tokens):
-                    tokens.append(t)
-                source_code = self.tokenizer.to_string(dictionary, tokens)
+                indices = indices[:max_tokens]
+                source_code = self.tokenizer.to_string(dictionary, indices)
 
             original_class, original_confidence = self.classifier.classify(source_code)
 
@@ -43,11 +41,7 @@ class AbstractSearchAlgorithm:
             if original_class:
                 return InvalidClassificationResult(source_code, number_of_tokens_in_src, original_class, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), 0, self.get_parameters(), truncated)
 
-            original_tokens = []
-            for i in range(number_of_tokens_in_src):
-                original_tokens.append(i)
-            result = self.perform_search(source_code, number_of_tokens_in_src, dictionary, original_class,
-                                         original_confidence, original_tokens)
+            result = self.perform_search(source_code, number_of_tokens_in_src, dictionary, original_class, original_confidence, indices)
             end = time.time()
             if self.verbose:
                 print("search took", end - start, "seconds")

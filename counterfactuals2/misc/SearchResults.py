@@ -1,8 +1,9 @@
 from typing import List
+from DatasetLoader import skipped
 
 ids_of_inputs = dict()  # [int] = str
 inputs_of_ids = dict()  # [str] = int
-current_id = 0
+current_id = skipped
 
 
 class SearchResult:

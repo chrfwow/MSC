@@ -1,8 +1,12 @@
 import json
 from typing import List
 
+skipped = 0
+
 
 def load_code_x_glue(skip: int = 0, keep: int = -1):
+    global skipped
+    skipped = skip
     file = open("D:/A_Uni/A_MasterThesis/CodeXGlue/function.json")
     content = file.read()
     dataset = json.loads(content)

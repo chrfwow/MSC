@@ -1,7 +1,10 @@
+from counterfactuals2.clangInit import init_clang
+
+init_clang()
+
 import clang.cindex
 import torch
 
-clang.cindex.Config.set_library_file('D:/Programme/LLVM/bin/libclang.dll')
 index = clang.cindex.Index.create()
 
 from counterfactuals2.classifier.PLBartClassifier import PLBartClassifier
