@@ -3,7 +3,7 @@ from typing import List
 
 
 def load_code_x_glue(skip: int = 0, keep: int = -1):
-    file = open("D:/A_Uni/A_MasterThesis/CodeXGlue/function.json")
+    file = open("../../../function.json")
     content = file.read()
     dataset = json.loads(content)
     vulnerable: List[str] = []
