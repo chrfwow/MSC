@@ -71,7 +71,7 @@ class KExpExhaustiveSearch(AbstractSearchAlgorithm):
             if self.verbose:
                 print("starting iteration", iteration)
                 print("searching through up to", len(this_iteration) * len(original_tokens), "mutations")
-            for i in range(len(this_iteration)):
+            while len(this_iteration) > 0:
                 current = this_iteration.pop()
 
                 self.expand(dictionary, current, explanations, original_class, next_iteration, start_time, tokens_in_input)
@@ -86,14 +86,13 @@ class KExpExhaustiveSearch(AbstractSearchAlgorithm):
 
     def expand(self, dictionary: List[str], entry: KEntry, explanations: List[Counterfactual], original_classification,
                next_iteration: List[KEntry], start_time: float, number_of_tokens_in_input: int):
-        dict_len = len(dictionary)
         for i in range(len(entry.document_indices)):
             if i not in entry.masked_indices:
                 current_doc = entry.clone()
                 try:
                     current_doc.masked_indices.append(i)
                     current_doc.changed_values.append(current_doc.document_indices[i])
-                    self.perturber.perturb_at_index(i, current_doc.document_indices, dict_len)
+                    self.perturber.perturb_at_index(i, current_doc.document_indices, len(dictionary))
                     current_doc.number_of_changes += 1
 
                     counterfactual = self.check(dictionary, current_doc, i, original_classification, start_time, number_of_tokens_in_input)

@@ -20,8 +20,12 @@ class AbstractTokenizer:
         else:
             self.mask = unmasker.get_mask()
 
-    def tokenize(self, source_code: str) -> (int, List[str]):
-        """Returns a tuple containing the number of tokens in the document, and a list of all available words,
+    def get_joining_string(self) -> str:
+        """Returns the string used to join the list of tokens when converting tokens to strings"""
+        raise NotImplementedError
+
+    def tokenize(self, source_code: str) -> (int, List[int], List[str]):
+        """Returns a tuple containing the number of tokens in the document, a list contacting the indices of the document, and a list of all available words,
         including words not in the document"""
         raise NotImplementedError
 
@@ -36,7 +40,7 @@ class AbstractTokenizer:
             else:
                 perturbed_sequence.append(dictionary[i])
 
-        return format_code(' '.join(perturbed_sequence), Language.Cpp)
+        return format_code(self.get_joining_string().join(perturbed_sequence), Language.Cpp)
 
     def to_string_unmasked(self, dictionary: List[str], tokens: List[int], replace_with_mask: int = -1) -> str:
         perturbed_sequence = []
@@ -53,4 +57,4 @@ class AbstractTokenizer:
                 perturbed_sequence.append(dictionary[token])
             i += 1
 
-        return format_code(' '.join(perturbed_sequence), Language.Cpp)
+        return format_code(self.get_joining_string().join(perturbed_sequence), Language.Cpp)

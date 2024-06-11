@@ -1,11 +1,12 @@
 import threading
 
-import clang.cindex
+from counterfactuals2.clangInit import init_clang
+
+init_clang()
 
 from counterfactuals2.misc.DatasetLoader import load_code_x_glue
 from counterfactuals2.misc.SearchResults import ids_of_inputs
-
-clang.cindex.Config.set_library_file('D:/Programme/LLVM/bin/libclang.dll')
+from counterfactuals2.tokenizer.ClangTokenizer import ClangTokenizer
 
 import datetime
 import time
@@ -23,7 +24,6 @@ from counterfactuals2.searchAlgorithms.GeneticSearchAlgorihm import GeneticSearc
 from counterfactuals2.searchAlgorithms.GreedySearchAlgorithm import GreedySearchAlgorithm
 from counterfactuals2.searchAlgorithms.KExpExhaustiveSearch import KExpExhaustiveSearch
 from counterfactuals2.tokenizer.LineTokenizer import LineTokenizer
-from counterfactuals2.tokenizer.RegexTokenizer import RegexTokenizer
 from counterfactuals2.unmasker.CodeBertUnmasker import CodeBertUnmasker
 from counterfactuals2.unmasker.NoOpUnmasker import NoOpUnmasker
 import json
@@ -60,7 +60,7 @@ def write_results_to_json_file(results: List, total_duration: float):
 def evaluate(classifiers: List[AbstractClassifier], src: str, results: List, verbose: bool = False):
     tokenizers = [
         LineTokenizer(),
-        RegexTokenizer()
+        ClangTokenizer()
     ]
     perturbers = [
         MaskedPerturber(),
@@ -139,8 +139,11 @@ def run_eval(classifiers: List[AbstractClassifier], lig_classifiers: List[Abstra
     for src in srcs:
         print("evaluating source code snippet #", i)
         i += 1
+        start = time.time()
         evaluate(classifiers, src, results, verbose)
         ligsearch(lig_classifiers, src, results, verbose)
+        end = time.time()
+        print("Source code #" + str(i) + " took " + str(end - start) + " sec")
         if not is_running:
             print("search aborted")
             break

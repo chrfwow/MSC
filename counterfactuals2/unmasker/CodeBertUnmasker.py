@@ -18,6 +18,10 @@ class CodeBertUnmasker(AbstractUnmasker):
         while isinstance(result, list):
             result = result[0]
         new_token = result["token_str"]
-        old_len = len(dictionary)
-        dictionary.append(new_token)
-        return old_len
+
+        if new_token not in dictionary:
+            old_len = len(dictionary)
+            dictionary.append(new_token)
+            return old_len
+        else:
+            return dictionary.index(new_token)
