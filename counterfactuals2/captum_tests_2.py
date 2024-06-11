@@ -22,17 +22,18 @@ int containsSubstring(char *input) {
 }
 """.strip()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 print("device", device)
 
 classifier = PLBartClassifier(device)
 # classifier = VulBERTa_MLP_Classifier(device)
-#classifier = CodeBertClassifier(device)
-#classifier = CodeT5Classifier(device)
-#classifier = GraphCodeBertClassifier(device)
+# classifier = CodeBertClassifier(device)
+# classifier = CodeT5Classifier(device)
+# classifier = GraphCodeBertClassifier(device)
 
-ligsearch = LigSearch(classifier, recompute_attributions_for_each_iteration=True)
+ligsearch = LigSearch(
+    classifier, recompute_attributions_for_each_iteration=True)
 
 counterfactuals = ligsearch.search(substring_search).counterfactuals
 

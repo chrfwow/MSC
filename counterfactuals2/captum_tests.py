@@ -1,18 +1,25 @@
+from captum.attr import LayerConductance, LayerIntegratedGradients, IntegratedGradients
+from torch.utils.data import DataLoader
+from torch import Tensor
+from torch.utils.data.dataset import T_co
+from torch.utils.data import Dataset
+import json
+from captum.attr import visualization, TokenReferenceBase
+from transformers import PLBartTokenizer, PLBartForSequenceClassification, AutoTokenizer
 import torch
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-from transformers import PLBartTokenizer, PLBartForSequenceClassification, AutoTokenizer
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 path = "uclanlp/plbart-c-cpp-defect-detection"
 
 tokenizer = AutoTokenizer.from_pretrained(path)
 
-model = PLBartForSequenceClassification.from_pretrained(path, output_attentions=True)
+model = PLBartForSequenceClassification.from_pretrained(
+    path, output_attentions=True)
 model.to(device)
 model.eval()
 model.zero_grad()
 
-from captum.attr import visualization, TokenReferenceBase
 
 vis = True
 show_progress = False
@@ -35,13 +42,6 @@ def add_attributions_to_visualizer(attributions, code, pred, pred_ind, label, vi
         attributions.sum(),  # attr_score
         code,  # raw_input_ids
         delta))  # convergence_score
-
-
-import json
-from torch.utils.data import Dataset
-from torch.utils.data.dataset import T_co
-from torch import Tensor
-from torch.utils.data import DataLoader
 
 
 class CodeInput(object):
@@ -101,8 +101,6 @@ def predict(inputs):
     attention_mask = construct_attention_mask(inputs)
     return model(input_ids=inputs, attention_mask=attention_mask).logits
 
-
-from captum.attr import LayerConductance, LayerIntegratedGradients, IntegratedGradients
 
 layers = []
 for l in model.model.decoder._modules["layers"]:
@@ -181,12 +179,14 @@ for token in tokens:
 indexed = [tokenizer._convert_token_to_id(t) for t in text]
 
 print("should be <pad>", tokenizer._convert_id_to_token(tokenizer.pad_token_id))
-print("must be true", tokenizer.pad_token == tokenizer._convert_id_to_token(tokenizer.pad_token_id))
+print("must be true", tokenizer.pad_token ==
+      tokenizer._convert_id_to_token(tokenizer.pad_token_id))
 
 PAD_IND = tokenizer.pad_token_id
 token_reference = TokenReferenceBase(reference_token_idx=PAD_IND)
 input_indices = torch.tensor(tokens, device=device)
-reference_indices = token_reference.generate_reference(len(indexed), device=device)
+reference_indices = token_reference.generate_reference(
+    len(indexed), device=device)
 reference_indices[0] = tokenizer.bos_token_id
 reference_indices[eos_index] = tokenizer.eos_token_id
 
@@ -209,7 +209,8 @@ if pred != labels.unsqueeze(0).item():
 
 print("attribute")
 # IG
-ig_attributions, delta = ig_attribute(input_indices, reference_indices.unsqueeze(0), pred)
+ig_attributions, delta = ig_attribute(
+    input_indices, reference_indices.unsqueeze(0), pred)
 ig_attrs.append((tokens, ig_attributions.squeeze(0).tolist()))
 
 print("finished")

@@ -1,32 +1,29 @@
+import json
+from unmasker.NoOpUnmasker import NoOpUnmasker
+from unmasker.CodeBertUnmasker import CodeBertUnmasker
+from tokenizer.LineTokenizer import LineTokenizer
+from searchAlgorithms.KExpExhaustiveSearch import KExpExhaustiveSearch
+from searchAlgorithms.GreedySearchAlgorithm import GreedySearchAlgorithm
+from searchAlgorithms.GeneticSearchAlgorihm import GeneticSearchAlgorithm
+from perturber.RemoveTokenPerturber import RemoveTokenPerturber
+from perturber.MutationPerturber import MutationPerturber
+from perturber.MaskedPerturber import MaskedPerturber
+from classifier.AbstractClassifier import AbstractClassifier
+import transformers
+import tokenizers
+import torch
+from typing import List
+import time
+import datetime
+from tokenizer.ClangTokenizer import ClangTokenizer
+from misc.SearchResults import ids_of_inputs
+from misc.DatasetLoader import load_code_x_glue
 import threading
 
-from counterfactuals2.clangInit import init_clang
+from clangInit import init_clang
 
 init_clang()
 
-from counterfactuals2.misc.DatasetLoader import load_code_x_glue
-from counterfactuals2.misc.SearchResults import ids_of_inputs
-from counterfactuals2.tokenizer.ClangTokenizer import ClangTokenizer
-
-import datetime
-import time
-from typing import List
-
-import torch
-import tokenizers
-import transformers
-
-from counterfactuals2.classifier.AbstractClassifier import AbstractClassifier
-from counterfactuals2.perturber.MaskedPerturber import MaskedPerturber
-from counterfactuals2.perturber.MutationPerturber import MutationPerturber
-from counterfactuals2.perturber.RemoveTokenPerturber import RemoveTokenPerturber
-from counterfactuals2.searchAlgorithms.GeneticSearchAlgorihm import GeneticSearchAlgorithm
-from counterfactuals2.searchAlgorithms.GreedySearchAlgorithm import GreedySearchAlgorithm
-from counterfactuals2.searchAlgorithms.KExpExhaustiveSearch import KExpExhaustiveSearch
-from counterfactuals2.tokenizer.LineTokenizer import LineTokenizer
-from counterfactuals2.unmasker.CodeBertUnmasker import CodeBertUnmasker
-from counterfactuals2.unmasker.NoOpUnmasker import NoOpUnmasker
-import json
 
 vulnerable_source_codes: List[str] = load_code_x_glue(keep=2)
 # vulnerable_source_codes: List[str] = [
@@ -43,15 +40,17 @@ vulnerable_source_codes: List[str] = load_code_x_glue(keep=2)
 # }
 # """.strip()
 # ]
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 is_running = True
 finished = False
 
 
 def write_results_to_json_file(results: List, total_duration: float):
-    content = json.dumps({"duration_sec": total_duration, "ids_of_input": ids_of_inputs, "results": results}, default=lambda o: o.__dict__)
-    file_name = "json_dump_" + transformers.__version__ + "_" + datetime.datetime.now().strftime("%Y_%B_%d__%H_%M_%S") + ".json"
+    content = json.dumps({"duration_sec": total_duration, "ids_of_input": ids_of_inputs,
+                         "results": results}, default=lambda o: o.__dict__)
+    file_name = "json_dump_" + transformers.__version__ + "_" + \
+        datetime.datetime.now().strftime("%Y_%B_%d__%H_%M_%S") + ".json"
     print("writing content to", file_name)
     with open(file_name, "w") as file:
         file.write(content)
@@ -80,9 +79,12 @@ def evaluate(classifiers: List[AbstractClassifier], src: str, results: List, ver
                 tokenizer.set_unmasker(unmasker)
 
                 search_algos = [
-                    GreedySearchAlgorithm(25, unmasker, tokenizer, classifier, perturber, verbose=verbose),
-                    GeneticSearchAlgorithm(tokenizer, classifier, perturber, 10, 30, verbose=verbose),
-                    KExpExhaustiveSearch(2, unmasker, tokenizer, classifier, perturber, verbose=verbose)
+                    GreedySearchAlgorithm(
+                        25, unmasker, tokenizer, classifier, perturber, verbose=verbose),
+                    GeneticSearchAlgorithm(
+                        tokenizer, classifier, perturber, 10, 30, verbose=verbose),
+                    KExpExhaustiveSearch(
+                        2, unmasker, tokenizer, classifier, perturber, verbose=verbose)
                 ]
 
                 for search_algorithm in search_algos:
@@ -103,9 +105,11 @@ def ligsearch(classifiers: List[AbstractClassifier], src: str, results: List, ve
 
     for classifier in classifiers:
         print("starting with LigSearch with " + classifier.__class__.__name__)
-        ligsearch = LigSearch(classifier, recompute_attributions_for_each_iteration=True, verbose=verbose)
+        ligsearch = LigSearch(
+            classifier, recompute_attributions_for_each_iteration=True, verbose=verbose)
         results.append(ligsearch.search(src))
-        ligsearch = LigSearch(classifier, recompute_attributions_for_each_iteration=False, verbose=verbose)
+        ligsearch = LigSearch(
+            classifier, recompute_attributions_for_each_iteration=False, verbose=verbose)
         results.append(ligsearch.search(src))
 
 
