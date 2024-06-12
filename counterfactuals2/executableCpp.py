@@ -1,18 +1,17 @@
+from counterfactuals2.unmasker.NoOpUnmasker import NoOpUnmasker
+from counterfactuals2.perturber.RemoveTokenPerturber import RemoveTokenPerturber
+from counterfactuals2.tokenizer.LineTokenizer import LineTokenizer
+from counterfactuals2.searchAlgorithms.GreedySearchAlgorithm import GreedySearchAlgorithm
+from counterfactuals2.classifier.PLBartClassifier import PLBartClassifier
+import torch
+import clang.cindex
 from counterfactuals2.clangInit import init_clang
 
 init_clang()
 
-import clang.cindex
-import torch
 
 index = clang.cindex.Index.create()
 
-from counterfactuals2.classifier.PLBartClassifier import PLBartClassifier
-from counterfactuals2.searchAlgorithms.GreedySearchAlgorithm import GreedySearchAlgorithm
-
-from counterfactuals2.tokenizer.LineTokenizer import LineTokenizer
-from counterfactuals2.perturber.RemoveTokenPerturber import RemoveTokenPerturber
-from counterfactuals2.unmasker.NoOpUnmasker import NoOpUnmasker
 
 cpp_code_easy = """
 #include <iostream>
@@ -127,7 +126,7 @@ int contains_substring(char *input) {
 
 cpp_code = substring_search
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # classifier = CodeReviewerClassifier()
 classifier = PLBartClassifier(device)
@@ -157,7 +156,8 @@ perturber = RemoveTokenPerturber()
 
 # search_algorithm = KExpExhaustiveSearch(2, unmasker, tokenizer, classifier, perturber)
 # search_algorithm = GeneticSearchAlgorithm(tokenizer, classifier, perturber, language, iterations=30, gene_pool_size=10)
-search_algorithm = GreedySearchAlgorithm(100, unmasker, tokenizer, classifier, perturber)
+search_algorithm = GreedySearchAlgorithm(
+    100, unmasker, tokenizer, classifier, perturber)
 
 counterfactuals = search_algorithm.search(cpp_code).counterfactuals
 
