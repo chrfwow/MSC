@@ -13,12 +13,28 @@ results_path = "results/"
 
 
 def eval(path):
-    with open(path) as file:
+    if type(path) != list:
+        path = [path]
+
+    first_doc = path[0]
+
+    with open(first_doc) as file:
         content = file.read()
     data = json.loads(content)
     duration = data["duration_sec"]
     inputs = data["ids_of_input"]
     raw_results = data["results"]
+
+    for p in path[1:]:
+        with open(p) as f:
+            content = f.read()
+            d = json.loads(content)
+            duration += d["duration_sec"]
+            for i, inp in d["ids_of_input"].items():
+                inputs[i] = inp
+            for r in d["results"]:
+                raw_results.append(r)
+
     print("duration", duration)
     results = dict()
     for raw in raw_results:
@@ -408,4 +424,5 @@ def number_of_cf(results):
     return numbers
 
 
-eval("D:\\A_Uni\\A_MasterThesis\\MMD\\counterfactuals2/json_dump_4.17.0_2024_June_03__10_55_57.json")
+eval(["D:\\A_Uni\\A_MasterThesis\\MMD\\counterfactuals2/json_dump_4.17.0_2024_June_03__10_55_57.json",
+      "D:\\A_Uni\\A_MasterThesis\\MMD\\counterfactuals2/json_dump_4.17.0_2024_June_03__10_55_57.json"])
