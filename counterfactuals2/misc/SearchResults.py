@@ -1,5 +1,6 @@
 from typing import List
-from DatasetLoader import skipped
+
+from counterfactuals2.misc.DatasetLoader import skipped
 
 ids_of_inputs = dict()  # [int] = str
 inputs_of_ids = dict()  # [str] = int

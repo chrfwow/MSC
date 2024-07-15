@@ -98,4 +98,4 @@ class EvaluationData:
         return len(self.counterfactuals) > 0
 
     def get_input(self, inputs):
-        return inputs[self.input_id]
+        return inputs[int(self.input_id)]

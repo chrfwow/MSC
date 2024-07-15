@@ -1,3 +1,4 @@
+import datetime
 import random
 import time
 from typing import List
@@ -70,11 +71,27 @@ class KExpExhaustiveSearch(AbstractSearchAlgorithm):
         for iteration in range(self.k):
             if self.verbose:
                 print("starting iteration", iteration)
-                print("searching through up to", len(this_iteration) * len(original_tokens), "mutations")
-            while len(this_iteration) > 0:
-                current = this_iteration.pop()
+                print("searching through up to", len(this_iteration)
+                      * len(original_tokens), "mutations")
 
-                self.expand(dictionary, current, explanations, original_class, next_iteration, start_time, tokens_in_input)
+            l = len(this_iteration)
+            i = 0
+            while l > 0:
+                if i > 0 and i % 10 == 0:
+                    max_time = 6 * 60 * 60  # 6 hrs
+                    now = time.time()
+                    if now - start_time > max_time:
+                        print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "aborting kees on level", iteration, "after", i, "steps because it takes currently", now - start_time, "sec")
+                        return explanations
+                    print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "KEES: Still alive at the", i, "th iteration, with", l, "entries to go")
+
+                current = this_iteration.pop()
+                l -= 1
+
+                self.expand(dictionary, current, explanations, original_class,
+                            next_iteration, start_time, tokens_in_input)
+
+                i += 1
 
             if self.verbose:
                 print("found", len(explanations), "counterfactuals")
@@ -87,36 +104,50 @@ class KExpExhaustiveSearch(AbstractSearchAlgorithm):
     def expand(self, dictionary: List[str], entry: KEntry, explanations: List[Counterfactual], original_classification,
                next_iteration: List[KEntry], start_time: float, number_of_tokens_in_input: int):
         for i in range(len(entry.document_indices)):
+
             if i not in entry.masked_indices:
                 current_doc = entry.clone()
                 try:
                     current_doc.masked_indices.append(i)
-                    current_doc.changed_values.append(current_doc.document_indices[i])
+                    current_doc.changed_values.append(
+                        current_doc.document_indices[i])
                     self.perturber.perturb_at_index(i, current_doc.document_indices, len(dictionary))
+                    if len(current_doc.document_indices) == 0:
+                        continue
                     current_doc.number_of_changes += 1
 
-                    counterfactual = self.check(dictionary, current_doc, i, original_classification, start_time, number_of_tokens_in_input)
+                    counterfactual = self.check(
+                        dictionary, current_doc, i, original_classification, start_time, number_of_tokens_in_input)
+                    if counterfactual is not None and no_duplicate(counterfactual, explanations):
+                        explanations.append(counterfactual)
+                        if self.verbose:
+                            print("Found a counterfactual", counterfactual)
+                    else:
+                        next_iteration.append(current_doc)
                 except Exception as e:
                     if self.verbose:
+                        if str(e).startswith("No mask_token"):
+                            continue
+                        print("error in keexp")
                         print(e)
+                        print("entry code", self.tokenizer.to_string(dictionary, entry.document_indices))
+                        print("current doc code", self.tokenizer.to_string(dictionary, current_doc.document_indices))
                     continue
-                if counterfactual is not None and no_duplicate(counterfactual, explanations):
-                    explanations.append(counterfactual)
-                    if self.verbose:
-                        print("Found a counterfactual", counterfactual)
-                else:
-                    next_iteration.append(current_doc)
 
     def check(self, dictionary, entry: KEntry, newly_masked_index: int,
               original_classification, start_time: float, number_of_tokens_in_input: int) -> Counterfactual | None:
-        src = self.tokenizer.to_string_unmasked(dictionary, entry.document_indices, newly_masked_index)
+
+        src = self.tokenizer.to_string_unmasked(
+            dictionary, entry.document_indices, newly_masked_index)
         if self.verbose:
             print("checking\n", src)
             print()
         output = self.classifier.classify(src)
-        current_classification, score = output[0] if isinstance(output, list) else output
+        current_classification, score = output[0] if isinstance(
+            output, list) else output
         if current_classification != original_classification:
-            changed_lines = ["" if i == AbstractTokenizer.EMPTY_TOKEN_INDEX else dictionary[i] for i in entry.changed_values]
+            changed_lines = ["" if i == AbstractTokenizer.EMPTY_TOKEN_INDEX else dictionary[i]
+                             for i in entry.changed_values]
             return Counterfactual(src, float(score), start_time, number_of_tokens_in_input, entry.number_of_changes, len(entry.document_indices), changed_lines)
         else:
             return None

@@ -19,11 +19,11 @@ class LigSearch(AbstractSearchAlgorithm):
     def __init__(
             self,
             classifier: AbstractClassifier,
+            device,
             max_iterations: int = 100,
             steps_per_iteration: int = 20,
             recompute_attributions_for_each_iteration: bool = True,
             verbose: bool = False,
-            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
             max_tokens_removal_ratio: float = .6
     ):
         super().__init__(None, classifier, verbose)
@@ -31,8 +31,10 @@ class LigSearch(AbstractSearchAlgorithm):
         self.max_iterations = max_iterations
         self.steps_per_iteration = steps_per_iteration
         self.recompute_attributions_for_each_iteration = recompute_attributions_for_each_iteration
-        self.lig = LayerIntegratedGradients(self.predict, self.classifier.get_embeddings())
-        self.token_reference = TokenReferenceBase(reference_token_idx=self.classifier.get_padding_token_id())
+        self.lig = LayerIntegratedGradients(
+            self.predict, self.classifier.get_embeddings())
+        self.token_reference = TokenReferenceBase(
+            reference_token_idx=self.classifier.get_padding_token_id())
         self.device = device
         self.classifier.prepare_for_lig(device)
         self.verbose = verbose
@@ -47,14 +49,14 @@ class LigSearch(AbstractSearchAlgorithm):
         na = NotApplicable()
         number_of_tokens_in_src = 0
         try:
-            torch.cuda.empty_cache()
             tokens = self.classifier.tokenize(source_code)
             number_of_tokens_in_src = len(tokens)
 
             max_tokens = self.classifier.get_max_tokens()
             if number_of_tokens_in_src > max_tokens:
                 if self.verbose:
-                    print("input too long, truncating from " + str(number_of_tokens_in_src) + " tokens to " + str(max_tokens))
+                    print("input too long, truncating from " +
+                          str(number_of_tokens_in_src) + " tokens to " + str(max_tokens))
                 truncated = True
                 tokens = tokens[0:max_tokens - 1]
                 source_code = ""
@@ -67,8 +69,8 @@ class LigSearch(AbstractSearchAlgorithm):
             if self.verbose:
                 print("input classified as", original_class, "with a confidence of", original_confidence)
 
-            if original_class:
-                return InvalidClassificationResult(source_code, number_of_tokens_in_src, original_class, self, self.classifier, na, na, na, 0, self.get_parameters(), truncated)
+            if not original_class:
+                return InvalidClassificationResult(source_code, number_of_tokens_in_src, original_class, self, self.classifier, na, na, na, time.time() - start, self.get_parameters(), truncated)
 
             result = self.perform_lig_search(source_code, original_class)
 
@@ -94,10 +96,11 @@ class LigSearch(AbstractSearchAlgorithm):
 
     def lig_attribute(self, input_indices, baseline, target):
         if target:
-            t = 0
-        else:
             t = 1
-        attributions, delta = self.lig.attribute(input_indices, baselines=baseline, target=t, n_steps=self.steps_per_iteration, return_convergence_delta=True)
+        else:
+            t = 0
+        attributions, delta = self.lig.attribute(
+            input_indices, baselines=baseline, target=t, n_steps=self.steps_per_iteration, return_convergence_delta=True)
         attributions = attributions.sum(dim=-1)
         return attributions / torch.norm(attributions), delta
 
@@ -128,10 +131,13 @@ class LigSearch(AbstractSearchAlgorithm):
     def get_lig_attributes(self, source_code: str, target_class) -> (List[int], List):
         input_ids, eos_index = self.get_input_ids(source_code)
 
-        input_id_tensor = torch.tensor(input_ids, device=self.device).unsqueeze(0)
-        reference_indices = self.get_reference_indices(len(input_ids), eos_index)
+        input_id_tensor = torch.tensor(
+            input_ids, device=self.device).unsqueeze(0)
+        reference_indices = self.get_reference_indices(
+            len(input_ids), eos_index)
 
-        lig_attributions, delta = self.lig_attribute(input_id_tensor.to(self.device), reference_indices.unsqueeze(0).to(self.device), target_class)
+        lig_attributions, delta = self.lig_attribute(input_id_tensor.to(
+            self.device), reference_indices.unsqueeze(0).to(self.device), target_class)
         attributions = lig_attributions.squeeze(0).tolist()
 
         del input_ids[0]
@@ -153,7 +159,8 @@ class LigSearch(AbstractSearchAlgorithm):
                 best_attribution = attributes[i]
 
         if self.verbose:
-            print("deleting token ", input_ids[best_index], ":", self.classifier.token_id_to_string(input_ids[best_index]), "with attribution", attributes[best_index])
+            print("deleting token ", input_ids[best_index], ":", self.classifier.token_id_to_string(
+                input_ids[best_index]), "with attribution", attributes[best_index])
 
         token_id = input_ids[best_index]
 
@@ -183,7 +190,6 @@ class LigSearch(AbstractSearchAlgorithm):
         abort_when_less_than_tokens = self.max_tokens_removal_ratio * original_number_of_tokens
 
         while iterations < self.max_iterations:
-            torch.cuda.empty_cache()
             if self.verbose:
                 print("iteration #", iterations, end="")
             iterations += 1
@@ -221,7 +227,8 @@ class LigSearch(AbstractSearchAlgorithm):
 
             if new_class != original_class:
                 changed_lines = [self.classifier.token_id_to_string(i) for i in changed_values]
-                counterfactuals.append(Counterfactual(source_code, iterations, start_time, number_of_tokens_in_input, number_of_changes, len(input_ids), changed_lines))
+                counterfactuals.append(Counterfactual(source_code, iterations, start_time,
+                                                      number_of_tokens_in_input, number_of_changes, len(input_ids), changed_lines))
                 return counterfactuals
             if len(input_ids) < abort_when_less_than_tokens:
                 if self.verbose:

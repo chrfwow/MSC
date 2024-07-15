@@ -1,3 +1,7 @@
+from counterfactuals2.clangInit import init_clang
+
+init_clang()
+
 import json
 from unmasker.NoOpUnmasker import NoOpUnmasker
 from unmasker.CodeBertUnmasker import CodeBertUnmasker
@@ -20,37 +24,31 @@ from misc.SearchResults import ids_of_inputs
 from misc.DatasetLoader import load_code_x_glue
 import threading
 
-from clangInit import init_clang
+slot = 0
+iteration = 0  # increment when a new iteration is started
 
-init_clang()
+max_slots = 4
+per_slot = 60
 
+already_done = iteration * per_slot * max_slots
 
-vulnerable_source_codes: List[str] = load_code_x_glue(keep=2)
-# vulnerable_source_codes: List[str] = [
-#     """
-# void helper_slbie(CPUPPCState *env, target_ulong addr){
-#     PowerPCCPU *cpu = ppc_env_get_cpu(env);
-#     ppc_slb_t *slb;
-#     slb = slb_lookup(cpu, addr);
-#     if (!slb) return;
-#     if (slb->esid & SLB_ESID_V) {
-#         slb->esid &= ~SLB_ESID_V;
-#         tlb_flush(CPU(cpu), 1);
-#     }
-# }
-# """.strip()
-# ]
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+offset = already_done + (slot * per_slot)
+
+vulnerable_source_codes: List[str] = load_code_x_glue(skip=offset, keep=per_slot)
+device = torch.device("cuda:" + str(slot) if torch.cuda.is_available() else "cpu")
+
+print("running on device", device)
 
 is_running = True
 finished = False
 
 
-def write_results_to_json_file(results: List, total_duration: float):
+def write_results_to_json_file(results: List, total_duration: float, id=-1):
+    from counterfactuals2.misc.SearchResults import ids_of_inputs
     content = json.dumps({"duration_sec": total_duration, "ids_of_input": ids_of_inputs,
-                         "results": results}, default=lambda o: o.__dict__)
-    file_name = "json_dump_" + transformers.__version__ + "_" + \
-        datetime.datetime.now().strftime("%Y_%B_%d__%H_%M_%S") + ".json"
+                          "results": results}, default=lambda o: o.__dict__)
+    file_name = "results_4gpus_v3_" + transformers.__version__ + "_" + \
+                datetime.datetime.now().strftime("%Y_%B_%d__%H_%M_%S") + ("" if id < 0 else "_" + str(id)) + ".json"
     print("writing content to", file_name)
     with open(file_name, "w") as file:
         file.write(content)
@@ -68,7 +66,7 @@ def evaluate(classifiers: List[AbstractClassifier], src: str, results: List, ver
     ]
 
     noop_unmasker = NoOpUnmasker()
-    code_bert_unmasker = CodeBertUnmasker()
+    code_bert_unmasker = CodeBertUnmasker(device)
     for classifier in classifiers:
         for tokenizer in tokenizers:
             for perturber in perturbers:
@@ -80,16 +78,16 @@ def evaluate(classifiers: List[AbstractClassifier], src: str, results: List, ver
 
                 search_algos = [
                     GreedySearchAlgorithm(
-                        25, unmasker, tokenizer, classifier, perturber, verbose=verbose),
+                        30, unmasker, tokenizer, classifier, perturber, verbose=verbose),
                     GeneticSearchAlgorithm(
-                        tokenizer, classifier, perturber, 10, 30, verbose=verbose),
+                        tokenizer, classifier, perturber, 10, 40, verbose=verbose),
                     KExpExhaustiveSearch(
                         2, unmasker, tokenizer, classifier, perturber, verbose=verbose)
                 ]
 
                 for search_algorithm in search_algos:
                     print(
-                        "starting with",
+                        datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "starting with",
                         search_algorithm.__class__.__name__,
                         unmasker.__class__.__name__,
                         tokenizer.__class__.__name__,
@@ -101,22 +99,23 @@ def evaluate(classifiers: List[AbstractClassifier], src: str, results: List, ver
 
 
 def ligsearch(classifiers: List[AbstractClassifier], src: str, results: List, verbose: bool = False):
-    from counterfactuals2.searchAlgorithms.LigSearch import LigSearch
+    from searchAlgorithms.LigSearch import LigSearch
 
     for classifier in classifiers:
-        print("starting with LigSearch with " + classifier.__class__.__name__)
+        print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "starting with LigSearch with " + classifier.__class__.__name__, "recompute_attributions_for_each_iteration", True)
         ligsearch = LigSearch(
-            classifier, recompute_attributions_for_each_iteration=True, verbose=verbose)
+            classifier, device, recompute_attributions_for_each_iteration=True, verbose=verbose)
         results.append(ligsearch.search(src))
+        print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "starting with LigSearch with " + classifier.__class__.__name__, "recompute_attributions_for_each_iteration", False)
         ligsearch = LigSearch(
-            classifier, recompute_attributions_for_each_iteration=False, verbose=verbose)
+            classifier, device, recompute_attributions_for_each_iteration=False, verbose=verbose)
         results.append(ligsearch.search(src))
 
 
 def evaluate_transformers_v_4_17_0(srcs: List[str], verbose: bool = False):
     print("evaluate_transformers_v_4_17_0")
-    from counterfactuals2.classifier.CodeBertClassifier import CodeBertClassifier
-    from counterfactuals2.classifier.PLBartClassifier import PLBartClassifier
+    from classifier.CodeBertClassifier import CodeBertClassifier
+    from classifier.PLBartClassifier import PLBartClassifier
     classifiers = [
         CodeBertClassifier(device),
         PLBartClassifier(device)
@@ -126,34 +125,34 @@ def evaluate_transformers_v_4_17_0(srcs: List[str], verbose: bool = False):
 
 def evaluate_transformers_v_4_37_0(srcs: List[str], verbose: bool = False):
     print("evaluate_transformers_v_4_37_0")
-    from counterfactuals2.classifier.VulBERTa_MLP_Classifier import VulBERTa_MLP_Classifier
-    from counterfactuals2.classifier.CodeT5Classifier import CodeT5Classifier
+    from classifier.VulBERTa_MLP_Classifier import VulBERTa_MLP_Classifier
+    from classifier.CodeT5Classifier import CodeT5Classifier
     vulberta = VulBERTa_MLP_Classifier(device)
     classifiers = [
         vulberta,
-        CodeT5Classifier(device)
+        # CodeT5Classifier(device),
     ]
     run_eval(classifiers, [vulberta], srcs, verbose)
 
 
 def run_eval(classifiers: List[AbstractClassifier], lig_classifiers: List[AbstractClassifier], srcs: List[str], verbose: bool):
-    results = []
     start_time = time.time()
     i = 1
     for src in srcs:
+        results = []
         print("evaluating source code snippet #", i)
-        i += 1
         start = time.time()
         evaluate(classifiers, src, results, verbose)
         ligsearch(lig_classifiers, src, results, verbose)
         end = time.time()
-        print("Source code #" + str(i) + " took " + str(end - start) + " sec")
+        write_results_to_json_file(results, end - start)
+        print("Source code #" + str(i), "(id", i + offset, ") took " + str(end - start) + " sec")
+        i += 1
         if not is_running:
             print("search aborted")
             break
     end_time = time.time()
     print("search took " + str(end_time - start_time))
-    write_results_to_json_file(results, end_time - start_time)
 
 
 def start():

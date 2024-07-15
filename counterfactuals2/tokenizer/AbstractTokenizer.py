@@ -50,6 +50,7 @@ class AbstractTokenizer:
             if token == self.EMPTY_TOKEN_INDEX:
                 pass
             elif token == replace_with_mask or token == AbstractUnmasker.MASK_INDEX:
+                tokens[token] = AbstractUnmasker.MASK_INDEX
                 code = format_code(self.to_string(dictionary, tokens), Language.Cpp, self.mask)
                 tokens[i] = self.unmasker.get_mask_replacement(token, code, dictionary)
                 perturbed_sequence.append(dictionary[token])

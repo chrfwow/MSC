@@ -17,6 +17,7 @@ class KEntry:
     document_indices: List[int]
     masked_indices: List[int]
     confidence_delta: float = 0
+    error_count = 0
 
     def __init__(self, classification: any, document_indices: List[int], number_of_changes: int = 0, changed_values: List[int] = []):
         self.classification = classification
@@ -75,13 +76,17 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
         start_time = time.time()
 
         for i in range(number_of_tokens_in_src):
-            current = original_entry.clone()
-            self.perturber.perturb_at_index(i, current.document_indices, len(dictionary))
-            current.changed_values.append(i)
-            current.number_of_changes += 1
-
             try:
-                result = self.check(dictionary, current, original_class, start_time, original_dictionary_length)
+                current = original_entry.clone()
+                self.perturber.perturb_at_index(
+                    i, current.document_indices, len(dictionary))
+                if len(current.document_indices) == 0:
+                    continue
+                current.changed_values.append(i)
+                current.number_of_changes += 1
+
+                result = self.check(
+                    dictionary, current, original_class, start_time, original_dictionary_length)
             except Exception as e:
                 if self.verbose:
                     print(e)
@@ -96,25 +101,34 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
                 if self.verbose:
                     print("#", i, "added with a delta of", delta)
 
+        # already done number_of_tokens_in_src steps in previous loop
         for step in range(self.max_search_steps - number_of_tokens_in_src):
             if len(pool) == 0:
                 print("search completed, no candidates left")
                 return counterfactuals
-            best_index = self.get_roulette_best_index(pool)
-            best = pool[best_index]
-
-            if self.verbose:
-                print("#", step + number_of_tokens_in_src, "popped the best with a delta of", best.confidence_delta)
-
-            current = best.clone()
-            current.changed_values.append(self.perturber.perturb_in_place(current.document_indices, len(dictionary)))
-            current.number_of_changes += 1
-
             try:
-                result = self.check(dictionary, current, original_class, start_time, original_dictionary_length)
+                best_index = self.get_roulette_best_index(pool)
+                best = pool[best_index]
+
+                if self.verbose:
+                    print("#", step + number_of_tokens_in_src,
+                          "popped the best with a delta of", best.confidence_delta)
+
+                current = best.clone()
+                current.changed_values.append(self.perturber.perturb_in_place(
+                    current.document_indices, len(dictionary)))
+                if len(current.document_indices) == 0:
+                    continue
+                current.number_of_changes += 1
+
+                result = self.check(
+                    dictionary, current, original_class, start_time, original_dictionary_length)
             except Exception as e:
                 if self.verbose:
                     print(e)
+                best.error_count += 1
+                if best.error_count > 3:
+                    del pool[best_index]
                 continue
             if type(result) == Counterfactual:
                 del pool[best_index]
@@ -153,16 +167,19 @@ class GreedySearchAlgorithm(AbstractSearchAlgorithm):
         return len(pool) - 1
 
     def check(self, dictionary, entry: KEntry, original_classification, start_time: float, number_of_tokens_in_input: int) -> Counterfactual | float:
-        src = self.tokenizer.to_string_unmasked(dictionary, entry.document_indices)
+        src = self.tokenizer.to_string_unmasked(
+            dictionary, entry.document_indices)
         if self.verbose:
             print("checking\n", src)
             print()
         output = self.classifier.classify(src)
-        current_classification, score = output[0] if isinstance(output, list) else output
+        current_classification, score = output[0] if isinstance(
+            output, list) else output
         if current_classification != original_classification:
             if self.verbose:
                 print("^^^^^^^ was a counterfactual")
-            changed_lines = ["" if i == AbstractTokenizer.EMPTY_TOKEN_INDEX else dictionary[i] for i in entry.changed_values]
+            changed_lines = ["" if i == AbstractTokenizer.EMPTY_TOKEN_INDEX else dictionary[i]
+                             for i in entry.changed_values]
             return Counterfactual(src, float(score), start_time, number_of_tokens_in_input, entry.number_of_changes, len(entry.document_indices), changed_lines)
         else:
             return float(score)

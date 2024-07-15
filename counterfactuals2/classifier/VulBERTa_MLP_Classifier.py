@@ -4,19 +4,50 @@ from transformers import pipeline
 
 class VulBERTa_MLP_Classifier(AbstractClassifier):
     def __init__(self, device):
-        self.pipe = pipeline("text-classification", model="claudios/VulBERTa-MLP-Devign", trust_remote_code=True, top_k=None, device=device, truncation=True)
+        self.pipe = pipeline("text-classification", model="claudios/VulBERTa-MLP-Devign",
+                             trust_remote_code=True, top_k=None, device=device, truncation=True)
 
     def classify(self, source_code: str) -> (bool, float):
-        """Evaluates the input and returns a tuple with (result, confidence). Result is True iff source_code is assumed to be ok"""
+        """Evaluates the input and returns a tuple with (result, confidence). Result is True iff source_code is assumed not to be ok"""
+
+        try:
+            tokens = self.pipe.tokenizer(source_code, return_tensors="pt")["input_ids"][0]
+
+            if len(tokens) > 1026:
+                max = 0
+                while True:
+                    tokens = self.pipe.tokenizer(source_code, return_tensors="pt", truncation=True)["input_ids"][0]
+
+                    if max > 0:
+                        tokens = list(tokens)
+                        while len(tokens) >= 1024:
+                            del tokens[-2]
+                            del tokens[-2]
+                        for i in range(max * 2 + 1):
+                            del tokens[-2]
+
+                    source_code = self.pipe.tokenizer.decode(tokens)
+                    tokens = self.pipe.tokenizer(source_code, return_tensors="pt")["input_ids"][0]
+
+                    if len(tokens) <= 1024:
+                        break
+
+                    max += 1
+                    if max > 10:
+                        raise Exception("input too long")
+        except Exception as e:
+            print(e)
+            raise e
+
         result = self.pipe(source_code)[0]
         a = result[0]
         b = result[1]
         score_a = a["score"]
         score_b = b["score"]
         if score_a > score_b:
-            return True, score_a
+            return False, score_a
         else:
-            return False, score_b
+            return True, score_b
 
     def get_max_tokens(self) -> int:
         return self.pipe.tokenizer.model_max_length
@@ -31,6 +62,7 @@ class VulBERTa_MLP_Classifier(AbstractClassifier):
 
     def prepare_for_lig(self, device):
         """Prepares the model for LIG by moving it to the given device next to other measures"""
+        self.device = device
         self.pipe.model.to(device)
         self.pipe.model.eval()
         self.pipe.model.zero_grad()

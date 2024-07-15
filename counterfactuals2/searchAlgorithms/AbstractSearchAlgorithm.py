@@ -9,7 +9,6 @@ from counterfactuals2.perturber.AbstractPerturber import AbstractPerturber
 from counterfactuals2.tokenizer.AbstractTokenizer import AbstractTokenizer
 from counterfactuals2.unmasker.AbstractUnmasker import AbstractUnmasker
 
-
 class AbstractSearchAlgorithm:
     def __init__(self, tokenizer: AbstractTokenizer, classifier: AbstractClassifier, verbose: bool):
         self.tokenizer = tokenizer
@@ -33,15 +32,15 @@ class AbstractSearchAlgorithm:
                 indices = indices[:max_tokens]
                 source_code = self.tokenizer.to_string(dictionary, indices)
 
-            original_class, original_confidence = self.classifier.classify(source_code)
+            original_class, original_confidence = self.classifier.classify( source_code)
 
             if self.verbose:
-                print("input classified as", original_class, "with a confidence of", original_confidence)
+                print("input classified as", original_class,     "with a confidence of", original_confidence)
 
-            if original_class:
+            if not original_class:
                 return InvalidClassificationResult(source_code, number_of_tokens_in_src, original_class, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), 0, self.get_parameters(), truncated)
 
-            result = self.perform_search(source_code, number_of_tokens_in_src, dictionary, original_class, original_confidence, indices)
+            result = self.perform_search(  source_code, number_of_tokens_in_src, dictionary, original_class, original_confidence, indices)
             end = time.time()
             if self.verbose:
                 print("search took", end - start, "seconds")
@@ -49,11 +48,8 @@ class AbstractSearchAlgorithm:
         except TypeError as e:
             raise e
         except Exception as e:
-            if not str(e).startswith("The expanded size"):
-                raise e
-            print(type(e), e)
             if self.verbose:
-                print(e)
+                print(type(e), e)
             end = time.time()
             return SearchError(source_code, number_of_tokens_in_src, e, self, self.classifier, self.get_perturber(), self.tokenizer, self.get_unmasker(), end - start, self.get_parameters(), truncated)
 
