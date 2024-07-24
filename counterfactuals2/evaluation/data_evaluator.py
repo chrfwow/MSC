@@ -83,6 +83,9 @@ def eval(path):
     for i, s in enumerate(raw_inputs):
         inputs[i] = s
 
+    plot_cf_sizes_per_algo(raw_results)
+    return
+
     print("duration", duration)
     results = dict()
     for raw in raw_results:
@@ -93,7 +96,6 @@ def eval(path):
 
     similarities = get_average_similarity(results, inputs)
     plot_similarities(similarities)
-    return
 
     plot_times_per_search_algo(raw_results)
     plot_lig(raw_results)
@@ -128,6 +130,182 @@ def eval(path):
     print_removed_types(results, removed, names)
     print("\n")
     print_invalid_classifications(total_number_of_evaluations_per_classifier, total_number_of_invalid_evaluations_per_classifier)
+
+
+def plot_cf_sizes_per_algo(raw_results):
+    x_axis = ["LineTokenizer", "ClangTokenizer", "MaskedPerturber", "MutationPerturber", "RemoveTokenPerturber"]
+    classifiers = ["CodeBertClassifier", "PLBartClassifier", "CodeT5Classifier", "VulBERTa_MLP_Classifier"]
+
+    search_algos = dict()
+    lig = dict()
+
+    true = dict()
+    true["total_cf_entries"] = 0
+    true["total_cfs"] = 0
+    true["total_changed_tokens"] = 0
+    true["total_input_tokens"] = 0
+    false = dict()
+    false["total_cf_entries"] = 0
+    false["total_cfs"] = 0
+    false["total_changed_tokens"] = 0
+    false["total_input_tokens"] = 0
+
+    lig["True"] = true
+    lig["False"] = false
+
+    for result in raw_results:
+        if "cause" in result or "classification" in result:
+            continue
+        counterfactuals = result["counterfactuals"]
+        number_of_cfs = len(counterfactuals)
+
+        search_algorithm = result["search_algorithm"]
+        if search_algorithm == "LigSearch":
+            if number_of_cfs > 0:
+
+                if result["parameters"]["recompute_attributions_for_each_iteration"]:
+                    data = lig["True"]
+                else:
+                    data = lig["False"]
+
+                data["total_cfs"] = data["total_cfs"] + number_of_cfs
+                data["total_cf_entries"] = data["total_cf_entries"] + 1
+
+                for c in counterfactuals:
+                    data["total_changed_tokens"] = data["total_changed_tokens"] + c['number_of_changes']
+                    data["total_input_tokens"] = data["total_input_tokens"] + c['number_of_tokens_in_input']
+
+            continue
+        if search_algorithm not in search_algos:
+            data = dict()
+            for x in x_axis:
+                t = dict()
+                t["total_cf_entries"] = 0
+                t["total_cfs"] = 0
+                t["total_changed_tokens"] = 0
+                t["total_input_tokens"] = 0
+                data[x] = t
+            for c in classifiers:
+                t = dict()
+                t["total_cf_entries"] = 0
+                t["total_cfs"] = 0
+                t["total_changed_tokens"] = 0
+                t["total_input_tokens"] = 0
+                data[c] = t
+            search_algos[search_algorithm] = data
+        else:
+            data = search_algos[search_algorithm]
+
+        tokenizer = result["tokenizer"]
+        perturber = result["perturber"]
+        classifier = result["classifier"]
+
+        data[tokenizer]["total_cf_entries"] = data[tokenizer]["total_cf_entries"] + 1
+        data[tokenizer]["total_cfs"] = data[tokenizer]["total_cfs"] + number_of_cfs
+
+        data[perturber]["total_cf_entries"] = data[perturber]["total_cf_entries"] + 1
+        data[perturber]["total_cfs"] = data[perturber]["total_cfs"] + number_of_cfs
+
+        data[classifier]["total_cf_entries"] = data[classifier]["total_cf_entries"] + 1
+        data[classifier]["total_cfs"] = data[classifier]["total_cfs"] + number_of_cfs
+
+        for c in counterfactuals:
+            data[tokenizer]["total_changed_tokens"] = data[tokenizer]["total_changed_tokens"] + c['number_of_changes']
+            data[tokenizer]["total_input_tokens"] = data[tokenizer]["total_input_tokens"] + c['number_of_tokens_in_input']
+            data[perturber]["total_changed_tokens"] = data[perturber]["total_changed_tokens"] + c['number_of_changes']
+            data[perturber]["total_input_tokens"] = data[perturber]["total_input_tokens"] + c['number_of_tokens_in_input']
+            data[classifier]["total_changed_tokens"] = data[classifier]["total_changed_tokens"] + c['number_of_changes']
+            data[classifier]["total_input_tokens"] = data[classifier]["total_input_tokens"] + c['number_of_tokens_in_input']
+
+    import numpy as np
+    cm = 1 / 2.54  # centimeters in inches
+
+    # relative number of changes per search algo
+
+    this_x_axis = list(x_axis)
+    x = np.arange(len(this_x_axis) + 2)
+    width = .25
+    multiplier = 0
+    fig, ax = plt.subplots(layout="constrained", figsize=(22 * cm, 12 * cm))
+
+    this_search_algos = dict(search_algos)
+    this_search_algos["LigSearch"] = lig
+
+    bars = []
+
+    for s, data in search_algos.items():
+        d = dict()
+        d[s] = []
+        for a in this_x_axis:
+            d[s].append(round(data[a]["total_changed_tokens"] / data[a]["total_input_tokens"] * 100, 1))
+
+        d[s].append(0)
+        d[s].append(0)
+
+        offset = width * multiplier
+        rects = plt.bar(
+            x + offset,
+            d[s],
+            width,
+            label=s.replace("_", " ").replace("Classifier", "").strip()
+        )
+        bars.append(ax.bar_label(rects, padding=3))
+        multiplier += 1
+
+    items = [true, false]
+    for t in items:
+        if t == true:
+            label = "Recompute"
+            ind = 5
+        else:
+            label = "Don't Recompute"
+            ind = 6
+
+        vals = [0] * 7
+        vals[ind] = round(t["total_changed_tokens"] / t["total_input_tokens"] * 100, 1)
+
+        offset = width * multiplier
+        rects = plt.bar(
+            x + width,
+            vals,
+            width,
+            label=label
+        )
+        bars.append(ax.bar_label(rects, padding=3))
+        multiplier += 1
+
+    ax.set_yscale("log")
+    # ax.legend([*[s for s,d in search_algos.items()], "Lig Search Recompute", "Lig Search Don't Recompute"])
+
+    # Greedy
+    m1, = ax.plot([], [], c='steelblue', marker='s', markersize=10, fillstyle='left', linestyle='none')
+    m2, = ax.plot([], [], c='steelblue', marker='s', markersize=10, fillstyle='right', linestyle='none')
+
+    # genetic
+    m3, = ax.plot([], [], c='darkorange', marker='s', markersize=10, fillstyle='left', linestyle='none')
+    m4, = ax.plot([], [], c='darkorange', marker='s', markersize=10, fillstyle='right', linestyle='none')
+
+    # kees
+    m5, = ax.plot([], [], c='forestgreen', marker='s', markersize=10, fillstyle='left', linestyle='none')
+    m6, = ax.plot([], [], c='forestgreen', marker='s', markersize=10, fillstyle='right', linestyle='none')
+
+    # lig
+    m7, = ax.plot([], [], c='red', marker='s', markersize=10, fillstyle='left', linestyle='none')
+    m8, = ax.plot([], [], c='purple', marker='s', markersize=10, fillstyle='right', linestyle='none')
+
+    # ---- Plot Legend ----
+    ax.legend(((m1, m2), (m3, m4), (m5, m6), (m7, m8)), (*[s for s, d in search_algos.items()], "Lig Search"), numpoints=1, loc="lower right")
+
+    ax.set_ylabel("Average percentage of changed tokens [%]")
+    ax.set_title("Average percentage of input tokens changed per counterfactual")
+    ax.set_xticks(x + width, [x.replace("Perturber", "").replace("Tokenizer", "") for x in [*x_axis, "Recompute", "Don't Recompute"]])
+    # ax.set_xticks(x + width, x_axis)
+
+    plt.savefig(results_path + "avg_size_of_cfs_per_search_algo.png")
+
+    # plt.show()
+
+    plt.close(fig)
 
 
 def plot_similarities(similarities):
@@ -246,7 +424,7 @@ def plot_similarities(similarities):
         bars.append(ax.bar_label(rects, padding=3))
         multiplier += 1
 
-    #ax.set_yscale("log")
+    # ax.set_yscale("log")
     ax.set_ylim(0)
 
     m1, = ax.plot([], [], c='steelblue', marker='s', markersize=10, fillstyle='left', linestyle='none')
@@ -338,7 +516,7 @@ def plot_lig(raw_results):
     plt.close(fig)
 
 
-def plot_times_per_search_algo(raw_results, similarities):
+def plot_times_per_search_algo(raw_results):
     x_axis = ["LineTokenizer", "ClangTokenizer", "MaskedPerturber", "MutationPerturber", "RemoveTokenPerturber"]
     classifiers = ["CodeBertClassifier", "PLBartClassifier", "CodeT5Classifier", "VulBERTa_MLP_Classifier"]
 
@@ -1259,7 +1437,7 @@ from os.path import isfile, join
 mypath = "D:\\A_Uni\\A_MasterThesis\\Results"
 
 onlyfiles = [mypath + "\\" + f for f in listdir(mypath) if isfile(join(mypath, f))]
-onlyfiles = onlyfiles[:18]
+# onlyfiles = onlyfiles[:10]
 
 print(onlyfiles)
 
