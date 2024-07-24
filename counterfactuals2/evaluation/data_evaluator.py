@@ -84,7 +84,6 @@ def eval(path):
         inputs[i] = s
 
     plot_cf_sizes_per_algo(raw_results)
-    return
 
     print("duration", duration)
     results = dict()
@@ -1137,6 +1136,9 @@ def print_parameters(results, names):
 
         for (p_name, value) in r.parameters.items():
             name = p_name.capitalize().replace("_", " ")
+            if name == "Allow syntax errors in counterfactuals":
+                # always true
+                continue
 
             if name not in indices:
                 indices[name] = current_index
